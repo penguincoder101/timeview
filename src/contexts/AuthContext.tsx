@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .eq('id', userId)
           .maybeSingle();
 
-        const { data, error } = await withTimeout(profilePromise, 5000);
+        const { data, error } = await withTimeout(profilePromise, 10000);
         
         if (error) {
           if (error.message.includes('permission denied')) {
