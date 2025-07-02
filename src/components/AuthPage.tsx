@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { History, ChevronLeft, Mail, AlertCircle, CheckCircle, Eye, EyeOff, Building, User, Lock, ArrowRight, UserCheck } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,7 +34,19 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
     organizationDescription: ''
   });
 
-  const { signInWithMagicLink, signInWithPassword, signUpWithPassword } = useAuth();
+  const { signInWithMagicLink, signInWithPassword, signUpWithPassword, user } = useAuth();
+
+  // Auto-redirect when user is authenticated
+  useEffect(() => {
+    if (user) {
+      // Small delay to show success message briefly before redirecting
+      const timer = setTimeout(() => {
+        onBackToTopicSelection();
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, onBackToTopicSelection]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -94,12 +106,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       const { error } = await signInWithPassword(signInData.email, signInData.password);
       if (error) {
         setError(error.message);
+        setIsLoading(false);
       } else {
-        setSuccess('Successfully signed in!');
+        setSuccess('Successfully signed in! Redirecting...');
+        // Don't set isLoading to false here - let the useEffect handle the redirect
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -161,13 +174,18 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
         setExistingUserEmail(result.existingUserEmail || registerData.email);
         setError('');
         setSuccess('');
+        setIsLoading(false);
       } else if (result.error) {
         setError(result.error.message);
+        setIsLoading(false);
       } else {
         if (registerData.isOrganization) {
           setSuccess('Registration successful! Your organization registration is pending admin approval. You will be notified once approved.');
+          setIsLoading(false);
         } else {
-          setSuccess('Registration successful! You can now sign in.');
+          setSuccess('Registration successful! Redirecting...');
+          // For individual users, they should be automatically signed in
+          // Don't set isLoading to false here - let the useEffect handle the redirect
         }
         setRegisterData({
           email: '',
@@ -182,7 +200,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
