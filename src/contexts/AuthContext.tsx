@@ -38,20 +38,6 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-// Helper function for query timeouts
-const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`Query timed out after ${ms}ms`));
-    }, ms);
-
-    promise
-      .then(resolve)
-      .catch(reject)
-      .finally(() => clearTimeout(timer));
-  });
-};
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -61,37 +47,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Function to safely fetch user profile without RLS recursion
+  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+    try {
+      // Use a stored procedure to bypass RLS for profile lookup
+      const { data, error } = await supabase.rpc('get_user_profile', { user_id: userId });
+      
+      if (error) {
+        console.error('[fetchUserProfile] RPC error:', error);
+        return null;
+      }
+      
+      if (data) {
+        return {
+          id: data.id,
+          email: data.email,
+          fullName: data.full_name,
+          avatarUrl: data.avatar_url,
+          role: data.role,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('[fetchUserProfile] Unexpected error:', error);
+      return null;
+    }
+  };
+
   const fetchUserData = useCallback(async (userId: string) => {
     console.log('[fetchUserData] Fetching data for user ID:', userId);
     try {
-      // 1. Fetch user profile with timeout and RLS error handling
-      let profileData: any = null;
-      try {
-        const profilePromise = supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
+      // 1. Fetch user profile using safe RPC method
+      console.log('[fetchUserData] Fetching user profile via RPC');
+      const profile = await fetchUserProfile(userId);
 
-        const { data, error } = await withTimeout(profilePromise, 10000);
-        
-        if (error) {
-          if (error.message.includes('permission denied')) {
-            console.warn('[fetchUserData] RLS blocked profile access. User profile might not exist yet.');
-          } else {
-            console.error('[fetchUserData] Error fetching user profile:', error);
-          }
-          profileData = null;
-        } else {
-          profileData = data;
-        }
-      } catch (timeoutError) {
-        console.error('[fetchUserData] Profile query timeout:', timeoutError);
-        profileData = null;
-      }
-
-      // 2. Handle profile data
-      if (!profileData) {
+      if (!profile) {
         console.log('[fetchUserData] No user profile found');
         setUserProfile(null);
         setOrganizations([]);
@@ -100,18 +92,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      console.log('[fetchUserData] User profile found:', profileData);
-      setUserProfile({
-        id: profileData.id,
-        email: profileData.email,
-        fullName: profileData.full_name,
-        avatarUrl: profileData.avatar_url,
-        role: profileData.role,
-        createdAt: profileData.created_at,
-        updatedAt: profileData.updated_at,
-      });
+      console.log('[fetchUserData] User profile found:', profile);
+      setUserProfile(profile);
 
-      // 3. Fetch memberships
+      // 2. Fetch memberships (no recursion risk)
       console.log('[fetchUserData] Fetching memberships...');
       const { data: membershipsData, error: membershipsError } = await supabase
         .from('organization_memberships')
@@ -126,7 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('[fetchUserData] Memberships found:', membershipsData);
       const organizationIds = membershipsData.map(m => m.organization_id);
 
-      // 4. Fetch organizations if needed
+      // 3. Fetch organizations
       let organizationsData: any[] = [];
       if (organizationIds.length > 0) {
         console.log('[fetchUserData] Fetching organizations for IDs:', organizationIds);
@@ -142,7 +126,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         organizationsData = orgsData || [];
       }
 
-      // 5. Transform memberships with organizations
+      // 4. Transform memberships
       const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
         const organization = organizationsData.find(org => org.id === m.organization_id);
         return {
@@ -166,7 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
       });
 
-      // 6. Update state
+      // 5. Update state
       setMemberships(transformedMemberships);
       
       const uniqueOrgs = transformedMemberships
