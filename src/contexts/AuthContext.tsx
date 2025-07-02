@@ -38,6 +38,20 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// Helper function for query timeouts
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Query timed out after ${ms}ms`));
+    }, ms);
+
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => clearTimeout(timer));
+  });
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -47,121 +61,124 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-const fetchUserData = useCallback(async (userId: string) => {
-  console.log('[fetchUserData] Fetching data for user ID:', userId);
-  try {
-    console.log('entering the try block');
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+  const fetchUserData = useCallback(async (userId: string) => {
+    console.log('[fetchUserData] Fetching data for user ID:', userId);
+    try {
+      // 1. Fetch user profile with timeout and RLS error handling
+      let profileData: any = null;
+      try {
+        const profilePromise = supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
 
-    console.log('testing if the await ever returns after entering the trry block');
+        const { data, error } = await withTimeout(profilePromise, 5000);
+        
+        if (error) {
+          if (error.message.includes('permission denied')) {
+            console.warn('[fetchUserData] RLS blocked profile access. User profile might not exist yet.');
+          } else {
+            console.error('[fetchUserData] Error fetching user profile:', error);
+          }
+          profileData = null;
+        } else {
+          profileData = data;
+        }
+      } catch (timeoutError) {
+        console.error('[fetchUserData] Profile query timeout:', timeoutError);
+        profileData = null;
+      }
 
-    if (profileError) {
-      console.error('[fetchUserData] Error fetching user profile:', profileError);
-      return;
-    }
-
-    if (!profileData) {
-      console.warn('[fetchUserData] No user profile found for user:', userId);
-      setUserProfile(null);
-      setOrganizations([]);
-      setMemberships([]);
-      setCurrentOrganization(null);
-      return;
-    }
-
-    console.log('[fetchUserData] User profile found:', profileData);
-
-    setUserProfile({
-      id: profileData.id,
-      email: profileData.email,
-      fullName: profileData.full_name,
-      avatarUrl: profileData.avatar_url,
-      role: profileData.role,
-      createdAt: profileData.created_at,
-      updatedAt: profileData.updated_at,
-    });
-
-    console.log('[fetchUserData] Fetching memberships...');
-    const { data: membershipsData, error: membershipsError } = await supabase
-      .from('organization_memberships')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (membershipsError) {
-      console.error('[fetchUserData] Error fetching memberships:', membershipsError);
-      return;
-    }
-
-    console.log('[fetchUserData] Memberships found:', membershipsData);
-
-    const organizationIds = membershipsData.map(m => m.organization_id);
-
-    let organizationsData: any[] = [];
-    if (organizationIds.length > 0) {
-      console.log('[fetchUserData] Fetching organizations for IDs:', organizationIds);
-      const { data: orgsData, error: orgsError } = await supabase
-        .from('organizations')
-        .select('*')
-        .in('id', organizationIds);
-
-      if (orgsError) {
-        console.error('[fetchUserData] Error fetching organizations:', orgsError);
+      // 2. Handle profile data
+      if (!profileData) {
+        console.log('[fetchUserData] No user profile found');
+        setUserProfile(null);
+        setOrganizations([]);
+        setMemberships([]);
+        setCurrentOrganization(null);
         return;
       }
 
-      console.log('[fetchUserData] Organizations found:', orgsData);
-      organizationsData = orgsData || [];
-    } else {
-      console.log('[fetchUserData] No organizations to fetch.');
+      console.log('[fetchUserData] User profile found:', profileData);
+      setUserProfile({
+        id: profileData.id,
+        email: profileData.email,
+        fullName: profileData.full_name,
+        avatarUrl: profileData.avatar_url,
+        role: profileData.role,
+        createdAt: profileData.created_at,
+        updatedAt: profileData.updated_at,
+      });
+
+      // 3. Fetch memberships
+      console.log('[fetchUserData] Fetching memberships...');
+      const { data: membershipsData, error: membershipsError } = await supabase
+        .from('organization_memberships')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (membershipsError) {
+        console.error('[fetchUserData] Error fetching memberships:', membershipsError);
+        return;
+      }
+
+      console.log('[fetchUserData] Memberships found:', membershipsData);
+      const organizationIds = membershipsData.map(m => m.organization_id);
+
+      // 4. Fetch organizations if needed
+      let organizationsData: any[] = [];
+      if (organizationIds.length > 0) {
+        console.log('[fetchUserData] Fetching organizations for IDs:', organizationIds);
+        const { data: orgsData, error: orgsError } = await supabase
+          .from('organizations')
+          .select('*')
+          .in('id', organizationIds);
+
+        if (orgsError) {
+          console.error('[fetchUserData] Error fetching organizations:', orgsError);
+          return;
+        }
+        organizationsData = orgsData || [];
+      }
+
+      // 5. Transform memberships with organizations
+      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
+        const organization = organizationsData.find(org => org.id === m.organization_id);
+        return {
+          id: m.id,
+          userId: m.user_id,
+          organizationId: m.organization_id,
+          role: m.role,
+          permissions: m.permissions,
+          createdAt: m.created_at,
+          updatedAt: m.updated_at,
+          organization: organization ? {
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            description: organization.description,
+            createdBy: organization.created_by,
+            createdAt: organization.created_at,
+            updatedAt: organization.updated_at,
+            status: organization.status,
+          } : undefined,
+        };
+      });
+
+      // 6. Update state
+      setMemberships(transformedMemberships);
+      
+      const uniqueOrgs = transformedMemberships
+        .map(m => m.organization)
+        .filter((org): org is Organization => org !== undefined);
+      
+      setOrganizations(uniqueOrgs);
+      setCurrentOrganization(uniqueOrgs.length > 0 ? uniqueOrgs[0] : null);
+    } catch (error) {
+      console.error('[fetchUserData] Unexpected error:', error);
     }
-
-    const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
-      const organization = organizationsData.find(org => org.id === m.organization_id);
-
-      return {
-        id: m.id,
-        userId: m.user_id,
-        organizationId: m.organization_id,
-        role: m.role,
-        permissions: m.permissions,
-        createdAt: m.created_at,
-        updatedAt: m.updated_at,
-        organization: organization
-          ? {
-              id: organization.id,
-              name: organization.name,
-              slug: organization.slug,
-              description: organization.description,
-              createdBy: organization.created_by,
-              createdAt: organization.created_at,
-              updatedAt: organization.updated_at,
-              status: organization.status,
-            }
-          : undefined,
-      };
-    });
-
-    console.log('[fetchUserData] Transformed memberships:', transformedMemberships);
-
-    setMemberships(transformedMemberships);
-
-    const uniqueOrgs = transformedMemberships
-      .map(m => m.organization)
-      .filter((org): org is Organization => org !== undefined);
-
-    console.log('[fetchUserData] Unique organizations:', uniqueOrgs);
-
-    setOrganizations(uniqueOrgs);
-    setCurrentOrganization(uniqueOrgs.length > 0 ? uniqueOrgs[0] : null);
-  } catch (error) {
-    console.error('[fetchUserData] Unexpected error:', error);
-  }
-}, []);
-
+  }, []);
 
   const refreshUserData = async () => {
     if (user) {
@@ -248,17 +265,25 @@ const fetchUserData = useCallback(async (userId: string) => {
         return { error: authError };
       }
 
-      if (authData.user && data.isOrganization && data.organizationName && data.organizationSlug) {
-        const { error: orgError } = await supabase.from('organizations').insert([{
-          name: data.organizationName,
-          slug: data.organizationSlug,
-          description: data.organizationDescription || null,
-          created_by: authData.user.id,
-          status: 'pending',
-        }]);
+      // Create user profile after signup
+      if (authData.user) {
+        await supabase.from('user_profiles').insert({
+          id: authData.user.id,
+          email: data.email,
+          full_name: data.fullName,
+          role: 'user', // Default role
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
 
-        if (orgError) {
-          console.error('[signUpWithPassword] Error creating organization:', orgError);
+        if (data.isOrganization && data.organizationName && data.organizationSlug) {
+          await supabase.from('organizations').insert([{
+            name: data.organizationName,
+            slug: data.organizationSlug,
+            description: data.organizationDescription || null,
+            created_by: authData.user.id,
+            status: 'pending',
+          }]);
         }
       }
 
@@ -284,44 +309,34 @@ const fetchUserData = useCallback(async (userId: string) => {
   };
 
   const isSuperAdmin = () => {
-    const result = userProfile?.role === 'super_admin';
-    console.log('[isSuperAdmin]', result);
-    return result;
+    return userProfile?.role === 'super_admin';
   };
 
   const isOrgAdmin = (orgId?: string) => {
     const targetOrgId = orgId || currentOrganization?.id;
     const membership = memberships.find(m => m.organizationId === targetOrgId);
-    const result = isSuperAdmin() || membership?.role === 'org_admin';
-    console.log('[isOrgAdmin]', { targetOrgId, result });
-    return result;
+    return isSuperAdmin() || membership?.role === 'org_admin';
   };
 
   const canEditTopic = (topic: Topic) => {
-    const result =
+    return (
       isSuperAdmin() ||
       (topic.organizationId &&
         ['org_admin', 'org_editor'].includes(
           memberships.find(m => m.organizationId === topic.organizationId)?.role || ''
         )) ||
-      (!topic.organizationId && !topic.isPublic && topic.createdBy === user?.id);
-
-    console.log('[canEditTopic]', { topic, result });
-    return result;
+      (!topic.organizationId && !topic.isPublic && topic.createdBy === user?.id)
+    );
   };
 
   const canCreateTopic = () => {
-    const result = !!user;
-    console.log('[canCreateTopic]', result);
-    return result;
+    return !!user;
   };
 
   const getOrgRole = (orgId: string) => {
     if (isSuperAdmin()) return 'super_admin';
     const membership = memberships.find(m => m.organizationId === orgId);
-    const role = membership?.role || 'none';
-    console.log('[getOrgRole]', { orgId, role });
-    return role;
+    return membership?.role || 'none';
   };
 
   const value = {
