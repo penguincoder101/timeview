@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { UserProfile, Organization, OrganizationMembership, RegisterFormData, AuthResponse } from '../types';
+import { UserProfile, Organization, OrganizationMembership, RegisterFormData, AuthResponse, Topic } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -19,7 +19,8 @@ interface AuthContextType {
   refreshUserData: () => Promise<void>;
   isSuperAdmin: () => boolean;
   isOrgAdmin: (orgId?: string) => boolean;
-  canEditTopic: (topicOrgId?: string) => boolean;
+  canEditTopic: (topic: Topic) => boolean;
+  canCreateTopic: () => boolean;
   getOrgRole: (orgId: string) => string;
 }
 
@@ -299,14 +300,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return membership?.role === 'org_admin';
   };
 
-  const canEditTopic = (topicOrgId?: string) => {
+  const canEditTopic = (topic: Topic) => {
+    // Super admins can edit any topic
     if (isSuperAdmin()) return true;
     
-    // If topic has no organization (legacy), allow editing for authenticated users
-    if (!topicOrgId) return !!user;
+    // If topic belongs to an organization
+    if (topic.organizationId) {
+      const membership = memberships.find(m => m.organizationId === topic.organizationId);
+      return membership?.role === 'org_admin' || membership?.role === 'org_editor';
+    }
     
-    const membership = memberships.find(m => m.organizationId === topicOrgId);
-    return membership?.role === 'org_admin' || membership?.role === 'org_editor';
+    // For topics without organization (legacy topics)
+    if (!topic.organizationId) {
+      // If topic is public, only super admins can edit
+      if (topic.isPublic) {
+        return false; // Already checked super admin above
+      }
+      
+      // If topic is private and user created it, they can edit
+      if (!topic.isPublic && topic.createdBy === user?.id) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  const canCreateTopic = () => {
+    // Any authenticated user can create topics
+    return !!user;
   };
 
   const getOrgRole = (orgId: string) => {
@@ -333,6 +355,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isSuperAdmin,
     isOrgAdmin,
     canEditTopic,
+    canCreateTopic,
     getOrgRole,
   };
 

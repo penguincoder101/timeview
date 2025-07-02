@@ -83,7 +83,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
   onEditTopic,
   onBackToTopicSelection
 }) => {
-  const { user, signOut, isSuperAdmin, loading } = useAuth();
+  const { user, signOut, isSuperAdmin, loading, canEditTopic, canCreateTopic } = useAuth();
   const [activeTab, setActiveTab] = useState<'topics' | 'organizations'>('topics');
   const [pendingOrganizations, setPendingOrganizations] = useState<PendingOrganization[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
@@ -299,15 +299,17 @@ const AdminPage: React.FC<AdminPageProps> = ({
             {activeTab === 'topics' && (
               <>
                 {/* Action buttons */}
-                <div className="flex justify-center mb-12">
-                  <button
-                    onClick={onAddTopic}
-                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Create New Timeline
-                  </button>
-                </div>
+                {canCreateTopic() && (
+                  <div className="flex justify-center mb-12">
+                    <button
+                      onClick={onAddTopic}
+                      className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                    >
+                      <Plus className="w-5 h-5" />
+                      Create New Timeline
+                    </button>
+                  </div>
+                )}
 
                 {/* Topics grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -315,6 +317,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     const IconComponent = getTopicIcon(topic.id);
                     const gradient = getTopicGradient(topic.id);
                     const description = getTopicDescription(topic.id);
+                    const canEdit = canEditTopic(topic);
                     
                     return (
                       <div
@@ -335,12 +338,36 @@ const AdminPage: React.FC<AdminPageProps> = ({
                           </button>
                           <button
                             onClick={(e) => handleEditClick(e, topic)}
-                            className="p-2 bg-gray-800/80 hover:bg-gray-700/90 rounded-lg text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                            title="Edit Timeline"
+                            disabled={!canEdit}
+                            className={`p-2 rounded-lg text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                              canEdit
+                                ? 'bg-gray-800/80 hover:bg-gray-700/90 focus:ring-gray-500'
+                                : 'bg-gray-600/50 cursor-not-allowed opacity-50'
+                            }`}
+                            title={canEdit ? "Edit Timeline" : "You don't have permission to edit this timeline"}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                         </div>
+                        
+                        {/* Permission indicator */}
+                        {topic.isPublic && !topic.organizationId && (
+                          <div className="absolute top-4 left-4 px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
+                            <span className="text-xs text-blue-400 font-medium">Public</span>
+                          </div>
+                        )}
+                        
+                        {topic.organizationId && (
+                          <div className="absolute top-4 left-4 px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
+                            <span className="text-xs text-purple-400 font-medium">Organization</span>
+                          </div>
+                        )}
+                        
+                        {!topic.isPublic && !topic.organizationId && (
+                          <div className="absolute top-4 left-4 px-2 py-1 bg-gray-500/20 border border-gray-500/30 rounded-full">
+                            <span className="text-xs text-gray-400 font-medium">Private</span>
+                          </div>
+                        )}
                         
                         {/* Icon */}
                         <div className={`w-16 h-16 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
@@ -372,7 +399,13 @@ const AdminPage: React.FC<AdminPageProps> = ({
                               </button>
                               <button
                                 onClick={(e) => handleEditClick(e, topic)}
-                                className="px-3 py-1 text-xs bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 hover:border-gray-500/50 rounded-lg text-gray-400 hover:text-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                                disabled={!canEdit}
+                                className={`px-3 py-1 text-xs border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                                  canEdit
+                                    ? 'bg-gray-600/20 hover:bg-gray-600/30 border-gray-500/30 hover:border-gray-500/50 text-gray-400 hover:text-gray-300 focus:ring-gray-500'
+                                    : 'bg-gray-700/20 border-gray-600/30 text-gray-600 cursor-not-allowed'
+                                }`}
+                                title={canEdit ? "Edit timeline" : "You don't have permission to edit this timeline"}
                               >
                                 Edit
                               </button>

@@ -15,7 +15,7 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
   onShowAuthPage 
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isSuperAdmin } = useAuth();
 
   // Keyboard navigation for topic grid
   useEffect(() => {
@@ -163,7 +163,7 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
               </div>
               
               {/* Sign In / Admin button */}
-              {!user || userProfile?.role !== 'super_admin' ? (
+              {!user || !isSuperAdmin() ? (
                 <button
                   onClick={onShowAuthPage}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 hover:border-blue-500/50 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
