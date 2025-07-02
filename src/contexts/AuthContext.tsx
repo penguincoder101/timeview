@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { UserProfile, Organization, OrganizationMembership, RegisterFormData } from '../types';
+import { UserProfile, Organization, OrganizationMembership, RegisterFormData, AuthResponse } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -13,7 +13,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUpWithPassword: (data: RegisterFormData) => Promise<{ error: AuthError | null }>;
+  signUpWithPassword: (data: RegisterFormData) => Promise<AuthResponse>;
   signOut: () => Promise<{ error: AuthError | null }>;
   checkIfAdminEmail: (email: string) => Promise<boolean>;
   setCurrentOrganization: (org: Organization | null) => void;
@@ -226,7 +226,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return { error };
   };
 
-  const signUpWithPassword = async (data: RegisterFormData) => {
+  const signUpWithPassword = async (data: RegisterFormData): Promise<AuthResponse> => {
     setLoading(true);
     
     try {
@@ -242,6 +242,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (authError) {
+        // Check if the error is specifically about user already existing
+        if (authError.message?.toLowerCase().includes('user already registered') || 
+            authError.message?.toLowerCase().includes('email already registered') ||
+            authError.message?.toLowerCase().includes('already been registered')) {
+          setLoading(false);
+          return { 
+            error: null, 
+            userExists: true, 
+            existingUserEmail: data.email 
+          };
+        }
+        
         setLoading(false);
         return { error: authError };
       }

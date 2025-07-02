@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, ChevronLeft, Mail, AlertCircle, CheckCircle, Eye, EyeOff, Building, User, Lock } from 'lucide-react';
+import { History, ChevronLeft, Mail, AlertCircle, CheckCircle, Eye, EyeOff, Building, User, Lock, ArrowRight, UserCheck } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthMode, SignInFormData, RegisterFormData } from '../types';
@@ -16,6 +16,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAdminEmail, setIsAdminEmail] = useState(false);
+  const [existingUserEmail, setExistingUserEmail] = useState<string | null>(null);
 
   // Form data
   const [signInData, setSignInData] = useState<SignInFormData>({
@@ -128,6 +129,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setExistingUserEmail(null);
 
     // Validation
     if (!validateEmail(registerData.email)) {
@@ -164,9 +166,10 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
     setIsLoading(true);
 
     try {
-      const { error } = await signUpWithPassword({
+      const result = await signUpWithPassword({
         email: registerData.email,
         password: registerData.password,
+        confirmPassword: registerData.confirmPassword,
         fullName: registerData.fullName,
         isOrganization: registerData.isOrganization,
         organizationName: registerData.organizationName,
@@ -174,8 +177,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
         organizationDescription: registerData.organizationDescription
       });
 
-      if (error) {
-        setError(error.message);
+      if (result.userExists) {
+        // User already exists - show welcome back message
+        setExistingUserEmail(result.existingUserEmail || registerData.email);
+        setError('');
+        setSuccess('');
+      } else if (result.error) {
+        setError(result.error.message);
       } else {
         if (registerData.isOrganization) {
           setSuccess('Registration successful! Your organization registration is pending admin approval. You will be notified once approved.');
@@ -198,6 +206,35 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSendMagicLinkForExistingUser = async () => {
+    if (!existingUserEmail) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await signInWithMagicLink(existingUserEmail);
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('Magic link sent! Please check your email and click the link to sign in.');
+        setExistingUserEmail(null);
+      }
+    } catch (err) {
+      setError('Failed to send magic link. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSwitchToSignIn = () => {
+    if (existingUserEmail) {
+      setSignInData({ email: existingUserEmail, password: '' });
+      setExistingUserEmail(null);
+    }
+    setMode('signin');
+    setError('');
+    setSuccess('');
   };
 
   return (
@@ -223,7 +260,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
                     Timeline Explorer
                   </h1>
                   <p className="text-xs sm:text-sm text-gray-400">
-                    {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                    {existingUserEmail ? 'Welcome Back!' : mode === 'signin' ? 'Sign In' : 'Create Account'}
                   </p>
                 </div>
               </div>
@@ -236,63 +273,131 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       <main className="relative z-10 min-h-[calc(100vh-80px)] flex items-center justify-center px-4 sm:px-6 py-8">
         <div className="w-full max-w-md">
           <div className="bg-gray-800/20 backdrop-blur-sm border border-gray-700/30 rounded-2xl p-8 shadow-2xl">
+            {/* Existing User Welcome Back */}
+            {existingUserEmail && (
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <UserCheck className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Welcome Back!</h2>
+                <p className="text-gray-400 mb-6">
+                  We found an existing account for <span className="text-blue-400 font-medium">{existingUserEmail}</span>
+                </p>
+                
+                <div className="space-y-4">
+                  <button
+                    onClick={handleSendMagicLinkForExistingUser}
+                    disabled={isLoading}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 disabled:hover:scale-100 shadow-lg hover:shadow-xl disabled:shadow-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Sending Magic Link...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <Mail className="w-5 h-5" />
+                        <span>Send Magic Link</span>
+                      </div>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={handleSwitchToSignIn}
+                    className="w-full py-3 px-4 bg-gray-700/50 hover:bg-gray-700/70 border border-gray-600/50 hover:border-gray-500/50 rounded-xl text-gray-300 hover:text-white font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <ArrowRight className="w-4 h-4" />
+                      <span>Sign In with Password</span>
+                    </div>
+                  </button>
+                </div>
+                
+                <p className="text-gray-500 text-sm mt-6">
+                  Choose your preferred sign-in method to continue
+                </p>
+                
+                {/* Error/Success Messages for existing user flow */}
+                {error && (
+                  <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+
+                {success && (
+                  <div className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <p className="text-green-400 text-sm">{success}</p>
+                  </div>
+                )}
+                
+                return;
+              </div>
+            )}
+
             {/* Mode Toggle */}
-            <div className="flex items-center gap-2 bg-gray-800/30 border border-gray-600/50 rounded-xl p-1 mb-8">
-              <button
-                type="button"
-                onClick={() => setMode('signin')}
-                className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                  mode === 'signin'
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('register')}
-                className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                  mode === 'register'
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
-                }`}
-              >
-                Register
-              </button>
-            </div>
+            {!existingUserEmail && (
+              <div className="flex items-center gap-2 bg-gray-800/30 border border-gray-600/50 rounded-xl p-1 mb-8">
+                <button
+                  type="button"
+                  onClick={() => setMode('signin')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    mode === 'signin'
+                      ? 'bg-blue-600 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('register')}
+                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    mode === 'register'
+                      ? 'bg-blue-600 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
+                  }`}
+                >
+                  Register
+                </button>
+              </div>
+            )}
 
             {/* Title */}
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                {mode === 'signin' ? (
-                  isAdminEmail ? <Mail className="w-8 h-8 text-white" /> : <Lock className="w-8 h-8 text-white" />
-                ) : (
-                  <User className="w-8 h-8 text-white" />
-                )}
+            {!existingUserEmail && (
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  {mode === 'signin' ? (
+                    isAdminEmail ? <Mail className="w-8 h-8 text-white" /> : <Lock className="w-8 h-8 text-white" />
+                  ) : (
+                    <User className="w-8 h-8 text-white" />
+                  )}
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
+                </h2>
+                <p className="text-gray-400">
+                  {mode === 'signin' 
+                    ? (isAdminEmail 
+                        ? 'We\'ll send you a secure login link' 
+                        : 'Enter your credentials to continue')
+                    : 'Join Timeline Explorer today'
+                  }
+                </p>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
-              </h2>
-              <p className="text-gray-400">
-                {mode === 'signin' 
-                  ? (isAdminEmail 
-                      ? 'We\'ll send you a secure login link' 
-                      : 'Enter your credentials to continue')
-                  : 'Join Timeline Explorer today'
-                }
-              </p>
-            </div>
+            )}
 
             {/* Error/Success Messages */}
-            {error && (
+            {!existingUserEmail && error && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
                 <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
 
-            {success && (
+            {!existingUserEmail && success && (
               <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
                 <p className="text-green-400 text-sm">{success}</p>
@@ -300,7 +405,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
             )}
 
             {/* Sign In Form */}
-            {mode === 'signin' && (
+            {!existingUserEmail && mode === 'signin' && (
               <form onSubmit={handleSignIn} className="space-y-6">
                 {/* Email Field */}
                 <div>
@@ -383,7 +488,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
             )}
 
             {/* Register Form */}
-            {mode === 'register' && (
+            {!existingUserEmail && mode === 'register' && (
               <form onSubmit={handleRegister} className="space-y-6">
                 {/* Email Field */}
                 <div>
@@ -596,14 +701,16 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
             )}
 
             {/* Info */}
-            <div className="mt-6 text-center">
-              <p className="text-gray-500 text-sm">
-                {mode === 'signin' 
-                  ? 'Admins receive secure magic links, users sign in with passwords'
-                  : 'Individual accounts are activated immediately, organizations require approval'
-                }
-              </p>
-            </div>
+            {!existingUserEmail && (
+              <div className="mt-6 text-center">
+                <p className="text-gray-500 text-sm">
+                  {mode === 'signin' 
+                    ? 'Admins receive secure magic links, users sign in with passwords'
+                    : 'Individual accounts are activated immediately, organizations require approval'
+                  }
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </main>

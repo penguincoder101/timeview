@@ -107,4 +107,11 @@ export interface RegisterFormData {
   organizationDescription?: string;
 }
 
+// Enhanced auth response types
+export interface AuthResponse {
+  error: any | null;
+  userExists?: boolean;
+  existingUserEmail?: string;
+}
+
 export type AuthMode = 'signin' | 'register';
