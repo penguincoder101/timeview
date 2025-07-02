@@ -1,7 +1,8 @@
 import React from 'react';
-import { History, ChevronLeft, Clock, Globe, Sword, Building, Edit, Plus, Settings, Mountain, Crown } from 'lucide-react';
+import { History, ChevronLeft, Clock, Globe, Sword, Building, Edit, Plus, Settings, Mountain, Crown, LogOut, User } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { Topic, TopicId } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AdminPageProps {
   topics: Topic[];
@@ -70,6 +71,8 @@ const AdminPage: React.FC<AdminPageProps> = ({
   onEditTopic,
   onBackToTopicSelection
 }) => {
+  const { user, signOut } = useAuth();
+
   const handleEditClick = (e: React.MouseEvent, topic: Topic) => {
     e.stopPropagation();
     onEditTopic(topic);
@@ -77,6 +80,13 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
   const handleViewClick = (topicId: TopicId) => {
     onTopicSelectForView(topicId);
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -89,7 +99,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
           <div className="flex items-center justify-between">
             <button
               onClick={onBackToTopicSelection}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity duration-200"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 rounded-lg"
             >
               <ChevronLeft className="w-5 h-5 text-blue-400" />
               <div className="flex items-center gap-3">
@@ -106,6 +116,30 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </div>
               </div>
             </button>
+
+            {/* User info and sign out */}
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-gray-800/20 border border-gray-700/30 rounded-xl">
+                <div className="p-1.5 bg-blue-500/20 rounded-lg">
+                  <User className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="text-sm">
+                  <p className="text-gray-400">Signed in as</p>
+                  <p className="text-white font-medium truncate max-w-32">
+                    {user?.email}
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 hover:border-red-500/50 rounded-lg text-red-400 hover:text-red-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm font-medium">Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -129,7 +163,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
             <div className="flex justify-center mb-12">
               <button
                 onClick={onAddTopic}
-                className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
+                className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900"
               >
                 <Plus className="w-5 h-5" />
                 Create New Timeline
@@ -137,7 +171,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </div>
 
             {/* Topics grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {topics.map((topic) => {
                 const IconComponent = getTopicIcon(topic.id);
                 const gradient = getTopicGradient(topic.id);
@@ -155,14 +189,14 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <button
                         onClick={() => handleViewClick(topic.id as TopicId)}
-                        className="p-2 bg-blue-600/80 hover:bg-blue-700/90 rounded-lg text-white transition-all duration-200"
+                        className="p-2 bg-blue-600/80 hover:bg-blue-700/90 rounded-lg text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                         title="View Timeline"
                       >
                         <History className="w-4 h-4" />
                       </button>
                       <button
                         onClick={(e) => handleEditClick(e, topic)}
-                        className="p-2 bg-gray-800/80 hover:bg-gray-700/90 rounded-lg text-white transition-all duration-200"
+                        className="p-2 bg-gray-800/80 hover:bg-gray-700/90 rounded-lg text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                         title="Edit Timeline"
                       >
                         <Edit className="w-4 h-4" />
@@ -193,13 +227,13 @@ const AdminPage: React.FC<AdminPageProps> = ({
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleViewClick(topic.id as TopicId)}
-                            className="px-3 py-1 text-xs bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 hover:border-blue-500/50 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200"
+                            className="px-3 py-1 text-xs bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 hover:border-blue-500/50 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                           >
                             View
                           </button>
                           <button
                             onClick={(e) => handleEditClick(e, topic)}
-                            className="px-3 py-1 text-xs bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 hover:border-gray-500/50 rounded-lg text-gray-400 hover:text-gray-300 transition-all duration-200"
+                            className="px-3 py-1 text-xs bg-gray-600/20 hover:bg-gray-600/30 border border-gray-500/30 hover:border-gray-500/50 rounded-lg text-gray-400 hover:text-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                           >
                             Edit
                           </button>

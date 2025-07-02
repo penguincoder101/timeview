@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { History, ChevronLeft, Settings } from 'lucide-react';
+import { AuthProvider } from './contexts/AuthContext';
 import AnimatedBackground from './components/AnimatedBackground';
 import TopicSelector from './components/TopicSelector';
 import TopicSelectionPage from './components/TopicSelectionPage';
@@ -9,10 +10,11 @@ import Timeline from './components/Timeline';
 import EventCard from './components/EventCard';
 import EmptyState from './components/EmptyState';
 import Modal from './components/Modal';
+import ProtectedRoute from './components/ProtectedRoute';
 import { timelineTopics as initialTimelineTopics } from './data/timelineData';
 import { TimelineEvent, TopicId, Topic, PageType, TimeDirection, TimelineDisplayMode } from './types';
 
-function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('topicSelection');
   const [timelineTopics, setTimelineTopics] = useState<Topic[]>(initialTimelineTopics);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -39,6 +41,46 @@ function App() {
     selectedEvent ? sortedEvents.findIndex(event => event.id === selectedEvent.id) : -1,
     [selectedEvent, sortedEvents]
   );
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Only handle global shortcuts when not in form inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (event.key) {
+        case 'h':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setCurrentPage('topicSelection');
+          }
+          break;
+        case 'a':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setCurrentPage('adminPage');
+          }
+          break;
+        case 'Escape':
+          if (currentPage === 'timelineView') {
+            handleBackToTopics();
+          } else if (showEventModal) {
+            setShowEventModal(false);
+          }
+          break;
+        case '?':
+          // Show keyboard shortcuts help (could be implemented later)
+          event.preventDefault();
+          console.log('Keyboard shortcuts: Ctrl+H (Home), Ctrl+A (Admin), Esc (Back), Arrow keys (Navigate)');
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [currentPage, showEventModal]);
 
   // Handle window resize
   useEffect(() => {
@@ -140,10 +182,6 @@ function App() {
   }, [timelineTopics]);
 
   const handleExploreRelatedTimeline = useCallback((topicId: TopicId) => {
-    console.log('=== EXPLORE RELATED TIMELINE ===');
-    console.log('Navigating to topic:', topicId);
-    console.log('Current stack:', timelineStack);
-    
     setTimelineStack(prev => [...prev, topicId]);
     setCurrentTopicId(topicId);
     
@@ -156,7 +194,7 @@ function App() {
     setCurrentPage('timelineView');
     setShowEventModal(false);
     // Don't set selectedEvent to null - let useEffect handle it
-  }, [timelineTopics, timelineStack]);
+  }, [timelineTopics]);
 
   const handleEventSelect = useCallback((event: TimelineEvent) => {
     setSelectedEvent(event);
@@ -249,38 +287,44 @@ function App() {
   // Show add topic page
   if (currentPage === 'addTopic') {
     return (
-      <TopicFormPage
-        onSubmit={handleAddTopic}
-        onCancel={handleBackFromForm}
-        generateId={generateId}
-        returnToPage="adminPage"
-      />
+      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+        <TopicFormPage
+          onSubmit={handleAddTopic}
+          onCancel={handleBackFromForm}
+          generateId={generateId}
+          returnToPage="adminPage"
+        />
+      </ProtectedRoute>
     );
   }
 
   // Show edit topic page
   if (currentPage === 'editTopic') {
     return (
-      <TopicFormPage
-        initialTopic={editingTopic}
-        onSubmit={handleUpdateTopic}
-        onCancel={handleBackFromForm}
-        generateId={generateId}
-        returnToPage="adminPage"
-      />
+      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+        <TopicFormPage
+          initialTopic={editingTopic}
+          onSubmit={handleUpdateTopic}
+          onCancel={handleBackFromForm}
+          generateId={generateId}
+          returnToPage="adminPage"
+        />
+      </ProtectedRoute>
     );
   }
 
   // Show admin page
   if (currentPage === 'adminPage') {
     return (
-      <AdminPage
-        topics={timelineTopics}
-        onTopicSelectForView={handleTopicSelection}
-        onAddTopic={handleShowAddTopic}
-        onEditTopic={handleEditTopic}
-        onBackToTopicSelection={handleBackFromAdminPage}
-      />
+      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+        <AdminPage
+          topics={timelineTopics}
+          onTopicSelectForView={handleTopicSelection}
+          onAddTopic={handleShowAddTopic}
+          onEditTopic={handleEditTopic}
+          onBackToTopicSelection={handleBackFromAdminPage}
+        />
+      </ProtectedRoute>
     );
   }
 
@@ -306,11 +350,12 @@ function App() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <button
               onClick={handleBackToTopics}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity duration-200"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 rounded-lg"
+              aria-label={timelineStack.length > 1 ? 'Go back to previous timeline' : 'Go back to topic selection'}
             >
               {/* Large screen: Full branding */}
               <div className="hidden md:flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl" aria-hidden="true">
                   <History className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -325,7 +370,7 @@ function App() {
               
               {/* Small screen: Simple back button */}
               <div className="flex md:hidden items-center gap-2">
-                <ChevronLeft className="w-5 h-5 text-blue-400" />
+                <ChevronLeft className="w-5 h-5 text-blue-400" aria-hidden="true" />
                 <span className="text-white font-medium">Back</span>
               </div>
             </button>
@@ -334,9 +379,10 @@ function App() {
               {/* Admin button - only show on large screens */}
               <button
                 onClick={handleShowAdminPage}
-                className="hidden md:flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200"
+                className="hidden md:flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                aria-label="Access admin panel"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4" aria-hidden="true" />
                 <span className="text-sm font-medium">Admin</span>
               </button>
               
@@ -354,7 +400,11 @@ function App() {
       </header>
 
       {/* Main content - RESPONSIVE LAYOUT IMPROVEMENTS */}
-      <main className="relative z-10 h-[calc(100vh-80px)] max-w-7xl mx-auto px-4 sm:px-6">
+      <main 
+        className="relative z-10 h-[calc(100vh-80px)] max-w-7xl mx-auto px-4 sm:px-6"
+        role="main"
+        aria-label="Timeline content"
+      >
         <div className="flex flex-col lg:flex-row h-full gap-4 lg:gap-6 py-4 lg:py-6">
           {/* Timeline - RESPONSIVE WIDTH ADJUSTMENTS */}
           {currentTopic && (
@@ -404,6 +454,14 @@ function App() {
         </Modal>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
