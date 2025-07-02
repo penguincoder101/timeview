@@ -49,15 +49,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fetch user profile and related data
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch user profile
+      // Fetch user profile - use maybeSingle() to handle cases where profile doesn't exist
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
         console.error('Error fetching user profile:', profileError);
+        return;
+      }
+
+      // If no profile exists, set userProfile to null
+      if (!profileData) {
+        console.warn('No user profile found for user:', userId);
+        setUserProfile(null);
+        setOrganizations([]);
+        setMemberships([]);
+        setCurrentOrganization(null);
         return;
       }
 
