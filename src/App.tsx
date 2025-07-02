@@ -11,12 +11,14 @@ import EventCard from './components/EventCard';
 import EmptyState from './components/EmptyState';
 import Modal from './components/Modal';
 import ProtectedRoute from './components/ProtectedRoute';
-import { timelineTopics as initialTimelineTopics } from './data/timelineData';
+import { fetchTopics, createTopic, updateTopic, deleteTopic } from './services/supabaseData';
 import { TimelineEvent, TopicId, Topic, PageType, TimeDirection, TimelineDisplayMode } from './types';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('topicSelection');
-  const [timelineTopics, setTimelineTopics] = useState<Topic[]>(initialTimelineTopics);
+  const [timelineTopics, setTimelineTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [selectedTopicIdForDisplay, setSelectedTopicIdForDisplay] = useState<TopicId | null>(null);
   const [currentTopicId, setCurrentTopicId] = useState<TopicId>('seven-wonders');
@@ -41,6 +43,32 @@ function AppContent() {
     selectedEvent ? sortedEvents.findIndex(event => event.id === selectedEvent.id) : -1,
     [selectedEvent, sortedEvents]
   );
+
+  // Load topics from Supabase on component mount
+  useEffect(() => {
+    const loadTopics = async () => {
+      setLoading(true);
+      setError(null);
+      
+      const { data, error } = await fetchTopics();
+      
+      if (error) {
+        console.error('Failed to load topics:', error);
+        setError('Failed to load timeline topics. Please try again.');
+      } else if (data) {
+        setTimelineTopics(data);
+        // Set default topic if available
+        if (data.length > 0) {
+          const defaultTopic = data.find(t => t.id === 'seven-wonders') || data[0];
+          setCurrentTopicId(defaultTopic.id as TopicId);
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    loadTopics();
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -131,25 +159,66 @@ function AppContent() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }, []);
 
-  const handleAddTopic = useCallback((newTopic: Topic, returnToPage: PageType) => {
-    setTimelineTopics(prev => [...prev, newTopic]);
-    setCurrentPage(returnToPage);
+  const refreshTopics = useCallback(async () => {
+    const { data, error } = await fetchTopics();
+    if (error) {
+      console.error('Failed to refresh topics:', error);
+      setError('Failed to refresh timeline topics.');
+    } else if (data) {
+      setTimelineTopics(data);
+    }
   }, []);
+
+  const handleAddTopic = useCallback(async (newTopic: Topic, returnToPage: PageType) => {
+    const { data, error } = await createTopic(newTopic);
+    
+    if (error) {
+      console.error('Failed to create topic:', error);
+      setError('Failed to create timeline topic. Please try again.');
+      return;
+    }
+    
+    if (data) {
+      await refreshTopics();
+      setCurrentPage(returnToPage);
+      setError(null);
+    }
+  }, [refreshTopics]);
 
   const handleEditTopic = useCallback((topic: Topic) => {
     setEditingTopic(topic);
     setCurrentPage('editTopic');
   }, []);
 
-  const handleUpdateTopic = useCallback((updatedTopic: Topic, returnToPage: PageType) => {
-    setTimelineTopics(prev => 
-      prev.map(topic => 
-        topic.id === updatedTopic.id ? updatedTopic : topic
-      )
-    );
-    setEditingTopic(null);
-    setCurrentPage(returnToPage);
-  }, []);
+  const handleUpdateTopic = useCallback(async (updatedTopic: Topic, returnToPage: PageType) => {
+    const { data, error } = await updateTopic(updatedTopic);
+    
+    if (error) {
+      console.error('Failed to update topic:', error);
+      setError('Failed to update timeline topic. Please try again.');
+      return;
+    }
+    
+    if (data) {
+      await refreshTopics();
+      setEditingTopic(null);
+      setCurrentPage(returnToPage);
+      setError(null);
+    }
+  }, [refreshTopics]);
+
+  const handleDeleteTopic = useCallback(async (topicId: string) => {
+    const { error } = await deleteTopic(topicId);
+    
+    if (error) {
+      console.error('Failed to delete topic:', error);
+      setError('Failed to delete timeline topic. Please try again.');
+      return;
+    }
+    
+    await refreshTopics();
+    setError(null);
+  }, [refreshTopics]);
 
   const handleTopicSelection = useCallback((topicId: TopicId) => {
     setSelectedTopicIdForDisplay(topicId);
@@ -283,6 +352,42 @@ function AppContent() {
 
   const hasNext = currentEventIndex < sortedEvents.length - 1;
   const hasPrevious = currentEventIndex > 0;
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center">
+          <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
+          <h2 className="text-2xl font-bold mb-2">Loading Timeline Explorer</h2>
+          <p className="text-gray-400">Fetching historical data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="relative z-10 text-center max-w-md mx-auto px-6">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <History className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold mb-4 text-red-400">Error Loading Data</h2>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors duration-200"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Show add topic page
   if (currentPage === 'addTopic') {
