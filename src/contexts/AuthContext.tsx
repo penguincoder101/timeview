@@ -47,10 +47,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile and related data - useCallback to memoize function
   const fetchUserData = useCallback(async (userId: string) => {
+    console.log('[fetchUserData] Fetching data for user ID:', userId);
     try {
-      // Fetch user profile
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -58,19 +57,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .maybeSingle();
 
       if (profileError) {
-        console.error('Error fetching user profile:', profileError);
+        console.error('[fetchUserData] Error fetching user profile:', profileError);
         return;
       }
 
-      // If no profile exists, set userProfile to null
       if (!profileData) {
-        console.warn('No user profile found for user:', userId);
+        console.warn('[fetchUserData] No user profile found for user:', userId);
         setUserProfile(null);
         setOrganizations([]);
         setMemberships([]);
         setCurrentOrganization(null);
         return;
       }
+
+      console.log('[fetchUserData] User profile found:', profileData);
 
       setUserProfile({
         id: profileData.id,
@@ -82,23 +82,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedAt: profileData.updated_at,
       });
 
-      // Fetch organization memberships
       const { data: membershipsData, error: membershipsError } = await supabase
         .from('organization_memberships')
         .select('*')
         .eq('user_id', userId);
 
       if (membershipsError) {
-        console.error('Error fetching memberships:', membershipsError);
+        console.error('[fetchUserData] Error fetching memberships:', membershipsError);
         return;
       }
 
-      const validMembershipsData = membershipsData || [];
+      if (!membershipsData || membershipsData.length === 0) {
+        console.warn('[fetchUserData] No memberships found for user:', userId);
+      } else {
+        console.log('[fetchUserData] Memberships found:', membershipsData);
+      }
 
-      // Fetch organizations
-      const organizationIds = validMembershipsData.map(m => m.organization_id);
-      
+      const organizationIds = membershipsData.map(m => m.organization_id);
       let organizationsData: any[] = [];
+
       if (organizationIds.length > 0) {
         const { data: orgsData, error: orgsError } = await supabase
           .from('organizations')
@@ -106,17 +108,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .in('id', organizationIds);
 
         if (orgsError) {
-          console.error('Error fetching organizations:', orgsError);
+          console.error('[fetchUserData] Error fetching organizations:', orgsError);
           return;
         }
 
+        console.log('[fetchUserData] Organizations found:', orgsData);
         organizationsData = orgsData || [];
+      } else {
+        console.warn('[fetchUserData] No organizations to fetch.');
       }
 
-      // Transform memberships data
-      const transformedMemberships: OrganizationMembership[] = validMembershipsData.map(m => {
+      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
         const organization = organizationsData.find(org => org.id === m.organization_id);
-        
+
         return {
           id: m.id,
           userId: m.user_id,
@@ -138,72 +142,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
       });
 
+      console.log('[fetchUserData] Transformed memberships:', transformedMemberships);
+
       setMemberships(transformedMemberships);
 
-      // Extract unique organizations
       const uniqueOrgs = transformedMemberships
         .map(m => m.organization)
         .filter((org): org is Organization => org !== undefined);
-      
+
+      console.log('[fetchUserData] Unique organizations:', uniqueOrgs);
+
       setOrganizations(uniqueOrgs);
-
-      // FIX: Use functional update to access latest state
-      setCurrentOrganization(current => {
-        // Keep current organization if already set
-        if (current) return current;
-        // Otherwise set to first organization if available
-        return uniqueOrgs.length > 0 ? uniqueOrgs[0] : null;
-      });
-
+      setCurrentOrganization(uniqueOrgs.length > 0 ? uniqueOrgs[0] : null);
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('[fetchUserData] Unexpected error:', error);
     }
   }, []);
 
   const refreshUserData = async () => {
     if (user) {
+      console.log('[refreshUserData] Refreshing data for user:', user.id);
       await fetchUserData(user.id);
     }
   };
 
   useEffect(() => {
-    // FIX: Wrap in try/catch to ensure loading always completes
     const handleAuthChange = async (event: any, session: Session | null) => {
-      console.log('Auth state changed:', event, session);
+      console.log('[handleAuthChange] Auth state changed:', event, session);
       setLoading(true);
-      
       try {
         setSession(session);
         setUser(session?.user ?? null);
-        
         if (session?.user) {
           await fetchUserData(session.user.id);
         } else {
-          // Clear user data on sign out
           setUserProfile(null);
           setOrganizations([]);
           setMemberships([]);
           setCurrentOrganization(null);
         }
       } catch (error) {
-        console.error('Error during auth state change:', error);
+        console.error('[handleAuthChange] Error handling auth state change:', error);
       } finally {
-        setLoading(false); // Always reset loading
+        setLoading(false);
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
     return () => subscription.unsubscribe();
-  }, [fetchUserData]); // Add fetchUserData as dependency
+  }, [fetchUserData]);
 
   const signInWithMagicLink = async (email: string) => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo: `${window.location.origin}`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}` },
       });
       return { error };
     } catch (error) {
@@ -216,10 +210,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signInWithPassword = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error };
     } catch (error) {
       return { error: error as AuthError };
@@ -230,45 +221,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUpWithPassword = async (data: RegisterFormData): Promise<AuthResponse> => {
     setLoading(true);
-    
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          data: {
-            full_name: data.fullName,
-          },
+          data: { full_name: data.fullName },
         },
       });
 
       if (authError) {
-        if (authError.message?.toLowerCase().includes('user already registered') || 
-            authError.message?.toLowerCase().includes('email already registered') ||
-            authError.message?.toLowerCase().includes('already been registered')) {
-          return { 
-            error: null, 
-            userExists: true, 
-            existingUserEmail: data.email 
+        if (
+          authError.message?.toLowerCase().includes('already') ||
+          authError.message?.toLowerCase().includes('registered')
+        ) {
+          return {
+            error: null,
+            userExists: true,
+            existingUserEmail: data.email,
           };
         }
-        
         return { error: authError };
       }
 
       if (authData.user && data.isOrganization && data.organizationName && data.organizationSlug) {
-        const { error: orgError } = await supabase
-          .from('organizations')
-          .insert([{
-            name: data.organizationName,
-            slug: data.organizationSlug,
-            description: data.organizationDescription || null,
-            created_by: authData.user.id,
-            status: 'pending'
-          }]);
+        const { error: orgError } = await supabase.from('organizations').insert([{
+          name: data.organizationName,
+          slug: data.organizationSlug,
+          description: data.organizationDescription || null,
+          created_by: authData.user.id,
+          status: 'pending',
+        }]);
 
         if (orgError) {
-          console.error('Error creating organization:', orgError);
+          console.error('[signUpWithPassword] Error creating organization:', orgError);
         }
       }
 
@@ -286,58 +272,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { error } = await supabase.auth.signOut();
       return { error };
     } catch (error) {
-      console.error('Error during sign out:', error);
+      console.error('[signOut] Error during sign out:', error);
       return { error: error as AuthError };
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper functions for role checking
   const isSuperAdmin = () => {
-    return userProfile?.role === 'super_admin';
+    const result = userProfile?.role === 'super_admin';
+    console.log('[isSuperAdmin]', result);
+    return result;
   };
 
   const isOrgAdmin = (orgId?: string) => {
-    if (isSuperAdmin()) return true;
-    
     const targetOrgId = orgId || currentOrganization?.id;
-    if (!targetOrgId) return false;
-    
     const membership = memberships.find(m => m.organizationId === targetOrgId);
-    return membership?.role === 'org_admin';
+    const result = isSuperAdmin() || membership?.role === 'org_admin';
+    console.log('[isOrgAdmin]', { targetOrgId, result });
+    return result;
   };
 
   const canEditTopic = (topic: Topic) => {
-    if (isSuperAdmin()) return true;
-    
-    if (topic.organizationId) {
-      const membership = memberships.find(m => m.organizationId === topic.organizationId);
-      return membership?.role === 'org_admin' || membership?.role === 'org_editor';
-    }
-    
-    if (!topic.organizationId) {
-      if (topic.isPublic) {
-        return false;
-      }
-      
-      if (!topic.isPublic && topic.createdBy === user?.id) {
-        return true;
-      }
-    }
-    
-    return false;
+    const result =
+      isSuperAdmin() ||
+      (topic.organizationId &&
+        ['org_admin', 'org_editor'].includes(
+          memberships.find(m => m.organizationId === topic.organizationId)?.role || ''
+        )) ||
+      (!topic.organizationId && !topic.isPublic && topic.createdBy === user?.id);
+
+    console.log('[canEditTopic]', { topic, result });
+    return result;
   };
 
   const canCreateTopic = () => {
-    return !!user;
+    const result = !!user;
+    console.log('[canCreateTopic]', result);
+    return result;
   };
 
   const getOrgRole = (orgId: string) => {
     if (isSuperAdmin()) return 'super_admin';
-    
     const membership = memberships.find(m => m.organizationId === orgId);
-    return membership?.role || 'none';
+    const role = membership?.role || 'none';
+    console.log('[getOrgRole]', { orgId, role });
+    return role;
   };
 
   const value = {
@@ -361,9 +341,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     getOrgRole,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
