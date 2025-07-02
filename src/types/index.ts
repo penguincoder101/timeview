@@ -70,6 +70,7 @@ export interface Organization {
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface OrganizationMembership {
@@ -87,3 +88,23 @@ export interface OrganizationMembership {
 
 export type OrganizationRole = 'org_admin' | 'org_editor' | 'org_viewer';
 export type GlobalRole = 'super_admin' | 'standard_user';
+
+// Auth form types
+export interface SignInFormData {
+  email: string;
+  password?: string;
+}
+
+export interface RegisterFormData {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  fullName: string;
+  isOrganization: boolean;
+  // Organization fields (only if isOrganization is true)
+  organizationName?: string;
+  organizationSlug?: string;
+  organizationDescription?: string;
+}
+
+export type AuthMode = 'signin' | 'register';

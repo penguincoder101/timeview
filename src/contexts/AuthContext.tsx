@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { UserProfile, Organization, OrganizationMembership } from '../types';
+import { UserProfile, Organization, OrganizationMembership, RegisterFormData } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -11,8 +11,11 @@ interface AuthContextType {
   memberships: OrganizationMembership[];
   currentOrganization: Organization | null;
   loading: boolean;
-  signIn: (email: string) => Promise<{ error: AuthError | null }>;
+  signInWithMagicLink: (email: string) => Promise<{ error: AuthError | null }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUpWithPassword: (data: RegisterFormData) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
+  checkIfAdminEmail: (email: string) => Promise<boolean>;
   setCurrentOrganization: (org: Organization | null) => void;
   refreshUserData: () => Promise<void>;
   isSuperAdmin: () => boolean;
@@ -109,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           createdBy: m.organization.created_by,
           createdAt: m.organization.created_at,
           updatedAt: m.organization.updated_at,
+          status: m.organization.status,
         } : undefined,
       }));
 
@@ -178,7 +182,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string) => {
+  const checkIfAdminEmail = async (email: string): Promise<boolean> => {
+    try {
+      // Check if this email belongs to a super admin
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('email', email)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking admin email:', error);
+        return false;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error('Error checking admin email:', error);
+      return false;
+    }
+  };
+
+  const signInWithMagicLink = async (email: string) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -188,6 +214,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
     setLoading(false);
     return { error };
+  };
+
+  const signInWithPassword = async (email: string, password: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    return { error };
+  };
+
+  const signUpWithPassword = async (data: RegisterFormData) => {
+    setLoading(true);
+    
+    try {
+      // First, sign up the user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+          },
+        },
+      });
+
+      if (authError) {
+        setLoading(false);
+        return { error: authError };
+      }
+
+      // If user registration is successful and it's an organization
+      if (authData.user && data.isOrganization && data.organizationName && data.organizationSlug) {
+        // Create the organization with pending status
+        const { error: orgError } = await supabase
+          .from('organizations')
+          .insert([{
+            name: data.organizationName,
+            slug: data.organizationSlug,
+            description: data.organizationDescription || null,
+            created_by: authData.user.id,
+            status: 'pending'
+          }]);
+
+        if (orgError) {
+          console.error('Error creating organization:', orgError);
+          // Don't return error here as user is already created
+        }
+      }
+
+      setLoading(false);
+      return { error: null };
+    } catch (error) {
+      setLoading(false);
+      return { error: error as AuthError };
+    }
   };
 
   const signOut = async () => {
@@ -237,8 +320,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     memberships,
     currentOrganization,
     loading,
-    signIn,
+    signInWithMagicLink,
+    signInWithPassword,
+    signUpWithPassword,
     signOut,
+    checkIfAdminEmail,
     setCurrentOrganization,
     refreshUserData,
     isSuperAdmin,
