@@ -50,11 +50,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 const fetchUserData = useCallback(async (userId: string) => {
   console.log('[fetchUserData] Fetching data for user ID:', userId);
   try {
+    console.log('entering the try block')
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
+
+    console.log('testing if the await ever returns after entering the trry block')
 
     if (profileError) {
       console.error('[fetchUserData] Error fetching user profile:', profileError);
