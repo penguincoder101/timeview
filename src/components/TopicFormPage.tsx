@@ -29,6 +29,7 @@ interface TopicFormPageProps {
   onCancel: (returnToPage: PageType) => void;
   generateId: () => string;
   returnToPage: PageType;
+  organizationId?: string;
 }
 
 interface SortableEventItemProps {
@@ -147,12 +148,14 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
   onSubmit, 
   onCancel, 
   generateId,
-  returnToPage
+  returnToPage,
+  organizationId
 }) => {
   const [topicForm, setTopicForm] = useState<NewTopicForm>({
     name: '',
     defaultDisplayMode: 'years',
     isPublic: false,
+    organizationId: organizationId,
     events: [{
       title: '',
       date: '',
@@ -178,6 +181,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
         name: initialTopic.name,
         defaultDisplayMode: initialTopic.defaultDisplayMode || 'years',
         isPublic: initialTopic.isPublic || false,
+        organizationId: initialTopic.organizationId || organizationId,
         events: initialTopic.events.map(event => ({
           id: event.id,
           title: event.title,
@@ -190,8 +194,11 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
           tags: event.tags ? event.tags.join(', ') : ''
         }))
       });
+    } else if (organizationId) {
+      // Set organization ID for new topics
+      setTopicForm(prev => ({ ...prev, organizationId }));
     }
-  }, [initialTopic]);
+  }, [initialTopic, organizationId]);
 
   // Ensure all events have IDs for drag and drop
   const eventsWithIds = useMemo(() => {
@@ -387,6 +394,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
       name: topicForm.name.trim(),
       defaultDisplayMode: topicForm.defaultDisplayMode,
       isPublic: topicForm.isPublic,
+      organizationId: topicForm.organizationId,
       events: eventsWithIds.map(event => ({
         id: event.id || generateId(),
         title: event.title.trim(),
@@ -518,32 +526,47 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
                   </p>
                 </div>
 
-                {/* Public Access Toggle */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                    {topicForm.isPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                    Public Access
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={topicForm.isPublic}
-                        onChange={(e) => handlePublicChange(e.target.checked)}
-                        className="w-5 h-5 text-blue-600 bg-gray-800/30 border-gray-600/50 rounded focus:ring-blue-500 focus:ring-2"
-                      />
-                      <span className="text-sm text-gray-300">
-                        Make this timeline publicly accessible
-                      </span>
+                {/* Public Access Toggle - only show if not in organization */}
+                {!organizationId && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      {topicForm.isPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                      Public Access
                     </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={topicForm.isPublic}
+                          onChange={(e) => handlePublicChange(e.target.checked)}
+                          className="w-5 h-5 text-blue-600 bg-gray-800/30 border-gray-600/50 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <span className="text-sm text-gray-300">
+                          Make this timeline publicly accessible
+                        </span>
+                      </label>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {topicForm.isPublic 
+                        ? 'Anyone can view this timeline without logging in'
+                        : 'Only authenticated users with proper permissions can view this timeline'
+                      }
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    {topicForm.isPublic 
-                      ? 'Anyone can view this timeline without logging in'
-                      : 'Only authenticated users with proper permissions can view this timeline'
-                    }
-                  </p>
-                </div>
+                )}
+
+                {/* Organization indicator */}
+                {organizationId && (
+                  <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-medium text-purple-400">Organization Timeline</span>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      This timeline will be created within your organization and will be accessible to organization members based on their permissions.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

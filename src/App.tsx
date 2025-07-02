@@ -5,6 +5,7 @@ import AnimatedBackground from './components/AnimatedBackground';
 import TopicSelector from './components/TopicSelector';
 import TopicSelectionPage from './components/TopicSelectionPage';
 import AdminPage from './components/AdminPage';
+import OrganizationDashboardPage from './components/OrganizationDashboardPage';
 import TopicFormPage from './components/TopicFormPage';
 import AuthPage from './components/AuthPage';
 import Timeline from './components/Timeline';
@@ -31,7 +32,7 @@ function AppContent() {
   const [timeDirection, setTimeDirection] = useState<TimeDirection>('none');
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('years');
 
-  const { user, userProfile, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading, isSuperAdmin, organizations, currentOrganization } = useAuth();
 
   // Combined loading state - true if either auth or topics are loading
   const isLoading = authLoading || topicsLoading;
@@ -51,17 +52,22 @@ function AppContent() {
     [selectedEvent, sortedEvents]
   );
 
-  // Auto-redirect to admin page when user logs in and is an admin
+  // Auto-redirect to appropriate dashboard when user logs in
   useEffect(() => {
     if (user && userProfile) {
       const isAdmin = userProfile.role === 'super_admin';
+      const hasOrganizations = organizations.length > 0;
       
-      // If user is an admin and currently on auth page or topic selection, redirect to admin
+      // If user is a super admin and currently on auth page or topic selection, redirect to admin
       if (isAdmin && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
         setCurrentPage('adminPage');
       }
+      // If user has organizations and is not a super admin, redirect to organization dashboard
+      else if (!isAdmin && hasOrganizations && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
+        setCurrentPage('organizationDashboard');
+      }
     }
-  }, [user, userProfile, currentPage]);
+  }, [user, userProfile, currentPage, organizations]);
 
   // Load topics from Supabase - only after auth is complete
   useEffect(() => {
@@ -73,6 +79,7 @@ function AppContent() {
       setError(null);
       
       try {
+        // Load all topics (RLS will filter based on user permissions)
         const { data, error } = await fetchTopics();
         
         if (error) {
@@ -118,6 +125,8 @@ function AppContent() {
             event.preventDefault();
             if (user && userProfile?.role === 'super_admin') {
               setCurrentPage('adminPage');
+            } else if (user && organizations.length > 0) {
+              setCurrentPage('organizationDashboard');
             } else {
               setCurrentPage('authPage');
             }
@@ -140,7 +149,7 @@ function AppContent() {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [currentPage, showEventModal, user, userProfile]);
+  }, [currentPage, showEventModal, user, userProfile, organizations]);
 
   // Handle window resize
   useEffect(() => {
@@ -204,6 +213,11 @@ function AppContent() {
   }, []);
 
   const handleAddTopic = useCallback(async (newTopic: Topic, returnToPage: PageType) => {
+    // Set organization ID if creating from organization dashboard
+    if (returnToPage === 'organizationDashboard' && currentOrganization) {
+      newTopic.organizationId = currentOrganization.id;
+    }
+    
     const { data, error } = await createTopic(newTopic);
     
     if (error) {
@@ -217,7 +231,7 @@ function AppContent() {
       setCurrentPage(returnToPage);
       setError(null);
     }
-  }, [refreshTopics]);
+  }, [refreshTopics, currentOrganization]);
 
   const handleEditTopic = useCallback((topic: Topic) => {
     setEditingTopic(topic);
@@ -370,10 +384,12 @@ function AppContent() {
   const handleShowAdminPage = useCallback(() => {
     if (user && userProfile?.role === 'super_admin') {
       setCurrentPage('adminPage');
+    } else if (user && organizations.length > 0) {
+      setCurrentPage('organizationDashboard');
     } else {
       setCurrentPage('authPage');
     }
-  }, [user, userProfile]);
+  }, [user, userProfile, organizations]);
 
   const handleShowAuthPage = useCallback(() => {
     setCurrentPage('authPage');
@@ -448,13 +464,15 @@ function AppContent() {
 
   // Show add topic page
   if (currentPage === 'addTopic') {
+    const returnToPage = user && userProfile?.role === 'super_admin' ? 'adminPage' : 'organizationDashboard';
     return (
       <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
         <TopicFormPage
           onSubmit={handleAddTopic}
           onCancel={handleBackFromForm}
           generateId={generateId}
-          returnToPage="adminPage"
+          returnToPage={returnToPage}
+          organizationId={currentOrganization?.id}
         />
       </ProtectedRoute>
     );
@@ -462,6 +480,7 @@ function AppContent() {
 
   // Show edit topic page
   if (currentPage === 'editTopic') {
+    const returnToPage = user && userProfile?.role === 'super_admin' ? 'adminPage' : 'organizationDashboard';
     return (
       <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
         <TopicFormPage
@@ -469,17 +488,33 @@ function AppContent() {
           onSubmit={handleUpdateTopic}
           onCancel={handleBackFromForm}
           generateId={generateId}
-          returnToPage="adminPage"
+          returnToPage={returnToPage}
+          organizationId={editingTopic?.organizationId}
         />
       </ProtectedRoute>
     );
   }
 
-  // Show admin page
+  // Show admin page (super admin only)
   if (currentPage === 'adminPage') {
     return (
       <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
         <AdminPage
+          topics={timelineTopics}
+          onTopicSelectForView={handleTopicSelection}
+          onAddTopic={handleShowAddTopic}
+          onEditTopic={handleEditTopic}
+          onBackToTopicSelection={handleBackFromAdminPage}
+        />
+      </ProtectedRoute>
+    );
+  }
+
+  // Show organization dashboard
+  if (currentPage === 'organizationDashboard') {
+    return (
+      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+        <OrganizationDashboardPage
           topics={timelineTopics}
           onTopicSelectForView={handleTopicSelection}
           onAddTopic={handleShowAddTopic}
@@ -542,12 +577,14 @@ function AppContent() {
               <button
                 onClick={handleShowAdminPage}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                aria-label={user && userProfile?.role === 'super_admin' ? 'Access admin panel' : 'Sign in to admin panel'}
+                aria-label={user && userProfile?.role === 'super_admin' ? 'Access admin panel' : user && organizations.length > 0 ? 'Access organization dashboard' : 'Sign in to admin panel'}
               >
-                {user && userProfile?.role === 'super_admin' ? (
+                {user && (userProfile?.role === 'super_admin' || organizations.length > 0) ? (
                   <>
                     <Settings className="w-4 h-4" aria-hidden="true" />
-                    <span className="text-sm font-medium hidden sm:inline">Admin</span>
+                    <span className="text-sm font-medium hidden sm:inline">
+                      {userProfile?.role === 'super_admin' ? 'Admin' : 'Dashboard'}
+                    </span>
                   </>
                 ) : (
                   <>

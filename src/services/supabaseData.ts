@@ -90,14 +90,21 @@ function transformEventToDatabase(event: TimelineEvent, topicId: string, userId?
   };
 }
 
-// Fetch all topics with their events (respects RLS)
-export async function fetchTopics(): Promise<{ data: Topic[] | null; error: Error | null }> {
+// Fetch all topics with their events (respects RLS) - now supports organization filtering
+export async function fetchTopics(organizationId?: string): Promise<{ data: Topic[] | null; error: Error | null }> {
   try {
-    // Fetch topics (RLS will filter based on user permissions)
-    const { data: topicsData, error: topicsError } = await supabase
+    // Build the query
+    let query = supabase
       .from('topics')
       .select('*')
       .order('name');
+
+    // Add organization filter if provided
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data: topicsData, error: topicsError } = await query;
 
     if (topicsError) {
       throw new Error(`Failed to fetch topics: ${topicsError.message}`);
@@ -283,6 +290,7 @@ export async function fetchOrganizations(): Promise<{ data: Organization[] | nul
       createdBy: org.created_by,
       createdAt: org.created_at,
       updatedAt: org.updated_at,
+      status: org.status,
     })) || [];
 
     return { data: organizations, error: null };
@@ -319,6 +327,7 @@ export async function createOrganization(org: Omit<Organization, 'id' | 'created
       createdBy: data.created_by,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
+      status: data.status,
     };
 
     return { data: organization, error: null };
