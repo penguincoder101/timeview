@@ -82,13 +82,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedAt: profileData.updated_at,
       });
 
-      // Fetch organization memberships with organization details
+      // Fetch organization memberships first
       const { data: membershipsData, error: membershipsError } = await supabase
         .from('organization_memberships')
-        .select(`
-          *,
-          organization:organizations(*)
-        `)
+        .select('*')
         .eq('user_id', userId);
 
       if (membershipsError) {
@@ -96,25 +93,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => ({
-        id: m.id,
-        userId: m.user_id,
-        organizationId: m.organization_id,
-        role: m.role,
-        permissions: m.permissions,
-        createdAt: m.created_at,
-        updatedAt: m.updated_at,
-        organization: m.organization ? {
-          id: m.organization.id,
-          name: m.organization.name,
-          slug: m.organization.slug,
-          description: m.organization.description,
-          createdBy: m.organization.created_by,
-          createdAt: m.organization.created_at,
-          updatedAt: m.organization.updated_at,
-          status: m.organization.status,
-        } : undefined,
-      }));
+      // Then fetch organizations separately to avoid ambiguous column references
+      const organizationIds = membershipsData.map(m => m.organization_id);
+      
+      let organizationsData: any[] = [];
+      if (organizationIds.length > 0) {
+        const { data: orgsData, error: orgsError } = await supabase
+          .from('organizations')
+          .select('*')
+          .in('id', organizationIds);
+
+        if (orgsError) {
+          console.error('Error fetching organizations:', orgsError);
+          return;
+        }
+
+        organizationsData = orgsData || [];
+      }
+
+      // Transform memberships data
+      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
+        const organization = organizationsData.find(org => org.id === m.organization_id);
+        
+        return {
+          id: m.id,
+          userId: m.user_id,
+          organizationId: m.organization_id,
+          role: m.role,
+          permissions: m.permissions,
+          createdAt: m.created_at,
+          updatedAt: m.updated_at,
+          organization: organization ? {
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            description: organization.description,
+            createdBy: organization.created_by,
+            createdAt: organization.created_at,
+            updatedAt: organization.updated_at,
+            status: organization.status,
+          } : undefined,
+        };
+      });
 
       setMemberships(transformedMemberships);
 
@@ -142,17 +162,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
+    // Clear any stale session data on initialization
+    const clearStaleSession = async () => {
+      try {
+        // Check if there's a session and if it's valid
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error && error.message.includes('refresh_token_not_found')) {
+          // Clear the session if refresh token is invalid
+          console.warn('Clearing stale session due to invalid refresh token');
+          await supabase.auth.signOut();
+          return null;
+        }
+        
+        return session;
+      } catch (error) {
+        console.error('Error checking session:', error);
+        return null;
+      }
+    };
+
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error getting session:', error);
-      } else {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchUserData(session.user.id);
-        }
+      const session = await clearStaleSession();
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchUserData(session.user.id);
       }
       setLoading(false);
     };
