@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { History, ChevronLeft, Mail, AlertCircle, CheckCircle, Eye, EyeOff, Building, User, Lock } from 'lucide-react';
+import AnimatedBackground from './AnimatedBackground';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthMode, SignInFormData, RegisterFormData } from '../types';
 
@@ -200,7 +201,9 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
   };
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden">
+    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
+      <AnimatedBackground />
+      
       {/* Header */}
       <header className="relative z-30 border-b border-gray-800/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 py-4">
