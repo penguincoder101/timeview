@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Organization, OrganizationMembership, RegisterFormData, AuthResponse, Topic } from '../types';
@@ -47,10 +47,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile and related data
-  const fetchUserData = async (userId: string) => {
+  // Fetch user profile and related data - useCallback to memoize function
+  const fetchUserData = useCallback(async (userId: string) => {
     try {
-      // Fetch user profile - use maybeSingle() to handle cases where profile doesn't exist
+      // Fetch user profile
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedAt: profileData.updated_at,
       });
 
-      // Fetch organization memberships first
+      // Fetch organization memberships
       const { data: membershipsData, error: membershipsError } = await supabase
         .from('organization_memberships')
         .select('*')
@@ -93,10 +93,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Handle case where membershipsData might be null
       const validMembershipsData = membershipsData || [];
 
-      // Then fetch organizations separately to avoid ambiguous column references
+      // Fetch organizations
       const organizationIds = validMembershipsData.map(m => m.organization_id);
       
       let organizationsData: any[] = [];
@@ -148,15 +147,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       setOrganizations(uniqueOrgs);
 
-      // Set current organization to first one if not set
-      if (!currentOrganization && uniqueOrgs.length > 0) {
-        setCurrentOrganization(uniqueOrgs[0]);
-      }
+      // FIX: Use functional update to access latest state
+      setCurrentOrganization(current => {
+        // Keep current organization if already set
+        if (current) return current;
+        // Otherwise set to first organization if available
+        return uniqueOrgs.length > 0 ? uniqueOrgs[0] : null;
+      });
 
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
-  };
+  }, []);
 
   const refreshUserData = async () => {
     if (user) {
@@ -165,14 +167,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Listen for auth changes - this is the sole mechanism for managing auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session);
-        
-        // Always set loading to true when processing auth state changes
-        setLoading(true);
-        
+    // FIX: Wrap in try/catch to ensure loading always completes
+    const handleAuthChange = async (event: any, session: Session | null) => {
+      console.log('Auth state changed:', event, session);
+      setLoading(true);
+      
+      try {
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -185,14 +185,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setMemberships([]);
           setCurrentOrganization(null);
         }
-        
-        // Always set loading to false after processing is complete
-        setLoading(false);
+      } catch (error) {
+        console.error('Error during auth state change:', error);
+      } finally {
+        setLoading(false); // Always reset loading
       }
-    );
+    };
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchUserData]); // Add fetchUserData as dependency
 
   const signInWithMagicLink = async (email: string) => {
     setLoading(true);
@@ -230,7 +232,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     
     try {
-      // First, sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -242,7 +243,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (authError) {
-        // Check if the error is specifically about user already existing
         if (authError.message?.toLowerCase().includes('user already registered') || 
             authError.message?.toLowerCase().includes('email already registered') ||
             authError.message?.toLowerCase().includes('already been registered')) {
@@ -256,9 +256,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { error: authError };
       }
 
-      // If user registration is successful and it's an organization
       if (authData.user && data.isOrganization && data.organizationName && data.organizationSlug) {
-        // Create the organization with pending status
         const { error: orgError } = await supabase
           .from('organizations')
           .insert([{
@@ -271,7 +269,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (orgError) {
           console.error('Error creating organization:', orgError);
-          // Don't return error here as user is already created
         }
       }
 
@@ -292,7 +289,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Error during sign out:', error);
       return { error: error as AuthError };
     } finally {
-      // Always reset loading state, regardless of success or failure
       setLoading(false);
     }
   };
@@ -313,23 +309,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const canEditTopic = (topic: Topic) => {
-    // Super admins can edit any topic
     if (isSuperAdmin()) return true;
     
-    // If topic belongs to an organization
     if (topic.organizationId) {
       const membership = memberships.find(m => m.organizationId === topic.organizationId);
       return membership?.role === 'org_admin' || membership?.role === 'org_editor';
     }
     
-    // For topics without organization (legacy topics)
     if (!topic.organizationId) {
-      // If topic is public, only super admins can edit
       if (topic.isPublic) {
-        return false; // Already checked super admin above
+        return false;
       }
       
-      // If topic is private and user created it, they can edit
       if (!topic.isPublic && topic.createdBy === user?.id) {
         return true;
       }
@@ -339,7 +330,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const canCreateTopic = () => {
-    // Any authenticated user can create topics
     return !!user;
   };
 
