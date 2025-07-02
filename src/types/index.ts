@@ -19,6 +19,7 @@ export interface Topic {
   defaultDisplayMode?: TimelineDisplayMode;
   organizationId?: string;
   createdBy?: string;
+  isPublic?: boolean;
 }
 
 export type TopicId = string;
@@ -47,6 +48,7 @@ export interface NewTopicForm {
   events: NewEventForm[];
   defaultDisplayMode?: TimelineDisplayMode;
   organizationId?: string;
+  isPublic?: boolean;
 }
 
 // User and Organization types

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { History, ChevronLeft, Plus, Trash2, Save, Calendar, Tag, Link, FileText, Image, ArrowLeft, ArrowRight, Eye, Clock, GripVertical, Edit3 } from 'lucide-react';
+import { History, ChevronLeft, Plus, Trash2, Save, Calendar, Tag, Link, FileText, Image, ArrowLeft, ArrowRight, Eye, Clock, GripVertical, Edit3, Globe, Lock } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import {
@@ -152,6 +152,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
   const [topicForm, setTopicForm] = useState<NewTopicForm>({
     name: '',
     defaultDisplayMode: 'years',
+    isPublic: false,
     events: [{
       title: '',
       date: '',
@@ -176,6 +177,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
         id: initialTopic.id,
         name: initialTopic.name,
         defaultDisplayMode: initialTopic.defaultDisplayMode || 'years',
+        isPublic: initialTopic.isPublic || false,
         events: initialTopic.events.map(event => ({
           id: event.id,
           title: event.title,
@@ -241,6 +243,10 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
 
   const handleDisplayModeChange = useCallback((mode: TimelineDisplayMode) => {
     setTopicForm(prev => ({ ...prev, defaultDisplayMode: mode }));
+  }, []);
+
+  const handlePublicChange = useCallback((isPublic: boolean) => {
+    setTopicForm(prev => ({ ...prev, isPublic }));
   }, []);
 
   const handleEventChange = useCallback((field: keyof NewEventForm, value: string) => {
@@ -380,6 +386,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
       id: topicForm.id || generateId(),
       name: topicForm.name.trim(),
       defaultDisplayMode: topicForm.defaultDisplayMode,
+      isPublic: topicForm.isPublic,
       events: eventsWithIds.map(event => ({
         id: event.id || generateId(),
         title: event.title.trim(),
@@ -508,6 +515,33 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
                   </div>
                   <p className="mt-2 text-xs text-gray-500">
                     Choose how events will be displayed by default when users view this timeline
+                  </p>
+                </div>
+
+                {/* Public Access Toggle */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    {topicForm.isPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    Public Access
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={topicForm.isPublic}
+                        onChange={(e) => handlePublicChange(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 bg-gray-800/30 border-gray-600/50 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <span className="text-sm text-gray-300">
+                        Make this timeline publicly accessible
+                      </span>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {topicForm.isPublic 
+                      ? 'Anyone can view this timeline without logging in'
+                      : 'Only authenticated users with proper permissions can view this timeline'
+                    }
                   </p>
                 </div>
               </div>

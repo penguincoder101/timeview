@@ -7,6 +7,7 @@ export interface DatabaseTopic {
   default_display_mode: 'years' | 'days';
   organization_id?: string;
   created_by?: string;
+  is_public: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +38,7 @@ function transformDatabaseTopic(dbTopic: DatabaseTopic, events: TimelineEvent[])
     defaultDisplayMode: dbTopic.default_display_mode,
     organizationId: dbTopic.organization_id,
     createdBy: dbTopic.created_by,
+    isPublic: dbTopic.is_public,
     events: events
   };
 }
@@ -64,7 +66,8 @@ function transformTopicToDatabase(topic: Topic): Omit<DatabaseTopic, 'created_at
     name: topic.name,
     default_display_mode: topic.defaultDisplayMode || 'years',
     organization_id: topic.organizationId,
-    created_by: topic.createdBy
+    created_by: topic.createdBy,
+    is_public: topic.isPublic || false
   };
 }
 
