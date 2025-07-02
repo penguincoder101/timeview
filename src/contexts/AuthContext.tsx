@@ -47,117 +47,118 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserData = useCallback(async (userId: string) => {
-    console.log('[fetchUserData] Fetching data for user ID:', userId);
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+const fetchUserData = useCallback(async (userId: string) => {
+  console.log('[fetchUserData] Fetching data for user ID:', userId);
+  try {
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
 
-      if (profileError) {
-        console.error('[fetchUserData] Error fetching user profile:', profileError);
-        return;
-      }
-
-      if (!profileData) {
-        console.warn('[fetchUserData] No user profile found for user:', userId);
-        setUserProfile(null);
-        setOrganizations([]);
-        setMemberships([]);
-        setCurrentOrganization(null);
-        return;
-      }
-
-      console.log('[fetchUserData] User profile found:', profileData);
-
-      setUserProfile({
-        id: profileData.id,
-        email: profileData.email,
-        fullName: profileData.full_name,
-        avatarUrl: profileData.avatar_url,
-        role: profileData.role,
-        createdAt: profileData.created_at,
-        updatedAt: profileData.updated_at,
-      });
-
-      const { data: membershipsData, error: membershipsError } = await supabase
-        .from('organization_memberships')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (membershipsError) {
-        console.error('[fetchUserData] Error fetching memberships:', membershipsError);
-        return;
-      }
-
-      if (!membershipsData || membershipsData.length === 0) {
-        console.warn('[fetchUserData] No memberships found for user:', userId);
-      } else {
-        console.log('[fetchUserData] Memberships found:', membershipsData);
-      }
-
-      const organizationIds = membershipsData.map(m => m.organization_id);
-      let organizationsData: any[] = [];
-
-      if (organizationIds.length > 0) {
-        const { data: orgsData, error: orgsError } = await supabase
-          .from('organizations')
-          .select('*')
-          .in('id', organizationIds);
-
-        if (orgsError) {
-          console.error('[fetchUserData] Error fetching organizations:', orgsError);
-          return;
-        }
-
-        console.log('[fetchUserData] Organizations found:', orgsData);
-        organizationsData = orgsData || [];
-      } else {
-        console.warn('[fetchUserData] No organizations to fetch.');
-      }
-
-      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
-        const organization = organizationsData.find(org => org.id === m.organization_id);
-
-        return {
-          id: m.id,
-          userId: m.user_id,
-          organizationId: m.organization_id,
-          role: m.role,
-          permissions: m.permissions,
-          createdAt: m.created_at,
-          updatedAt: m.updated_at,
-          organization: organization ? {
-            id: organization.id,
-            name: organization.name,
-            slug: organization.slug,
-            description: organization.description,
-            createdBy: organization.created_by,
-            createdAt: organization.created_at,
-            updatedAt: organization.updated_at,
-            status: organization.status,
-          } : undefined,
-        };
-      });
-
-      console.log('[fetchUserData] Transformed memberships:', transformedMemberships);
-
-      setMemberships(transformedMemberships);
-
-      const uniqueOrgs = transformedMemberships
-        .map(m => m.organization)
-        .filter((org): org is Organization => org !== undefined);
-
-      console.log('[fetchUserData] Unique organizations:', uniqueOrgs);
-
-      setOrganizations(uniqueOrgs);
-      setCurrentOrganization(uniqueOrgs.length > 0 ? uniqueOrgs[0] : null);
-    } catch (error) {
-      console.error('[fetchUserData] Unexpected error:', error);
+    if (profileError) {
+      console.error('[fetchUserData] Error fetching user profile:', profileError);
+      return;
     }
-  }, []);
+
+    if (!profileData) {
+      console.warn('[fetchUserData] No user profile found for user:', userId);
+      setUserProfile(null);
+      setOrganizations([]);
+      setMemberships([]);
+      setCurrentOrganization(null);
+      return;
+    }
+
+    console.log('[fetchUserData] User profile found:', profileData);
+
+    setUserProfile({
+      id: profileData.id,
+      email: profileData.email,
+      fullName: profileData.full_name,
+      avatarUrl: profileData.avatar_url,
+      role: profileData.role,
+      createdAt: profileData.created_at,
+      updatedAt: profileData.updated_at,
+    });
+
+    console.log('[fetchUserData] Fetching memberships...');
+    const { data: membershipsData, error: membershipsError } = await supabase
+      .from('organization_memberships')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (membershipsError) {
+      console.error('[fetchUserData] Error fetching memberships:', membershipsError);
+      return;
+    }
+
+    console.log('[fetchUserData] Memberships found:', membershipsData);
+
+    const organizationIds = membershipsData.map(m => m.organization_id);
+
+    let organizationsData: any[] = [];
+    if (organizationIds.length > 0) {
+      console.log('[fetchUserData] Fetching organizations for IDs:', organizationIds);
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('organizations')
+        .select('*')
+        .in('id', organizationIds);
+
+      if (orgsError) {
+        console.error('[fetchUserData] Error fetching organizations:', orgsError);
+        return;
+      }
+
+      console.log('[fetchUserData] Organizations found:', orgsData);
+      organizationsData = orgsData || [];
+    } else {
+      console.log('[fetchUserData] No organizations to fetch.');
+    }
+
+    const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
+      const organization = organizationsData.find(org => org.id === m.organization_id);
+
+      return {
+        id: m.id,
+        userId: m.user_id,
+        organizationId: m.organization_id,
+        role: m.role,
+        permissions: m.permissions,
+        createdAt: m.created_at,
+        updatedAt: m.updated_at,
+        organization: organization
+          ? {
+              id: organization.id,
+              name: organization.name,
+              slug: organization.slug,
+              description: organization.description,
+              createdBy: organization.created_by,
+              createdAt: organization.created_at,
+              updatedAt: organization.updated_at,
+              status: organization.status,
+            }
+          : undefined,
+      };
+    });
+
+    console.log('[fetchUserData] Transformed memberships:', transformedMemberships);
+
+    setMemberships(transformedMemberships);
+
+    const uniqueOrgs = transformedMemberships
+      .map(m => m.organization)
+      .filter((org): org is Organization => org !== undefined);
+
+    console.log('[fetchUserData] Unique organizations:', uniqueOrgs);
+
+    setOrganizations(uniqueOrgs);
+    setCurrentOrganization(uniqueOrgs.length > 0 ? uniqueOrgs[0] : null);
+  } catch (error) {
+    console.error('[fetchUserData] Unexpected error:', error);
+  }
+}, []);
+
 
   const refreshUserData = async () => {
     if (user) {
