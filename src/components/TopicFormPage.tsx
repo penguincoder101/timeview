@@ -20,7 +20,6 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import AnimatedBackground from './AnimatedBackground';
 import { Topic, NewTopicForm, NewEventForm, PageType, TimelineDisplayMode } from '../types';
 
 interface TopicFormPageProps {
@@ -419,9 +418,7 @@ const TopicFormPage: React.FC<TopicFormPageProps> = ({
   const activeEvent = activeId ? eventsWithIds.find(event => event.id === activeId) : null;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
-      <AnimatedBackground />
-      
+    <div className="min-h-screen text-white relative overflow-hidden">
       {/* Header */}
       <header className="relative z-30 border-b border-gray-800/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 py-4">

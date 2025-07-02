@@ -387,7 +387,7 @@ function AppContent() {
   // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center relative overflow-hidden">
         <AnimatedBackground />
         <div className="relative z-10 text-center">
           <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
@@ -401,7 +401,7 @@ function AppContent() {
   // Show error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center relative overflow-hidden">
         <AnimatedBackground />
         <div className="relative z-10 text-center max-w-md mx-auto px-6">
           <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -422,67 +422,84 @@ function AppContent() {
 
   // Show auth page
   if (currentPage === 'authPage') {
-    return <AuthPage onBackToTopicSelection={handleBackFromAuthPage} />;
+    return (
+      <div className="min-h-screen text-white relative overflow-hidden">
+        <AnimatedBackground />
+        <AuthPage onBackToTopicSelection={handleBackFromAuthPage} />
+      </div>
+    );
   }
 
   // Show add topic page
   if (currentPage === 'addTopic') {
     return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <TopicFormPage
-          onSubmit={handleAddTopic}
-          onCancel={handleBackFromForm}
-          generateId={generateId}
-          returnToPage="adminPage"
-        />
-      </ProtectedRoute>
+      <div className="min-h-screen text-white relative overflow-hidden">
+        <AnimatedBackground />
+        <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+          <TopicFormPage
+            onSubmit={handleAddTopic}
+            onCancel={handleBackFromForm}
+            generateId={generateId}
+            returnToPage="adminPage"
+          />
+        </ProtectedRoute>
+      </div>
     );
   }
 
   // Show edit topic page
   if (currentPage === 'editTopic') {
     return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <TopicFormPage
-          initialTopic={editingTopic}
-          onSubmit={handleUpdateTopic}
-          onCancel={handleBackFromForm}
-          generateId={generateId}
-          returnToPage="adminPage"
-        />
-      </ProtectedRoute>
+      <div className="min-h-screen text-white relative overflow-hidden">
+        <AnimatedBackground />
+        <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+          <TopicFormPage
+            initialTopic={editingTopic}
+            onSubmit={handleUpdateTopic}
+            onCancel={handleBackFromForm}
+            generateId={generateId}
+            returnToPage="adminPage"
+          />
+        </ProtectedRoute>
+      </div>
     );
   }
 
   // Show admin page
   if (currentPage === 'adminPage') {
     return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <AdminPage
-          topics={timelineTopics}
-          onTopicSelectForView={handleTopicSelection}
-          onAddTopic={handleShowAddTopic}
-          onEditTopic={handleEditTopic}
-          onBackToTopicSelection={handleBackFromAdminPage}
-        />
-      </ProtectedRoute>
+      <div className="min-h-screen text-white relative overflow-hidden">
+        <AnimatedBackground />
+        <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
+          <AdminPage
+            topics={timelineTopics}
+            onTopicSelectForView={handleTopicSelection}
+            onAddTopic={handleShowAddTopic}
+            onEditTopic={handleEditTopic}
+            onBackToTopicSelection={handleBackFromAdminPage}
+          />
+        </ProtectedRoute>
+      </div>
     );
   }
 
   // Show topic selection page
   if (currentPage === 'topicSelection') {
     return (
-      <TopicSelectionPage
-        topics={timelineTopics}
-        onTopicSelect={handleTopicSelection}
-        onShowAuthPage={handleShowAuthPage}
-      />
+      <div className="min-h-screen text-white relative overflow-hidden">
+        <AnimatedBackground />
+        <TopicSelectionPage
+          topics={timelineTopics}
+          onTopicSelect={handleTopicSelection}
+          onShowAuthPage={handleShowAuthPage}
+        />
+      </div>
     );
   }
 
   // Show timeline view
   return (
-    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
+    <div className="min-h-screen text-white relative overflow-hidden">
       <AnimatedBackground timeDirection={timeDirection} />
       
       {/* Header */}

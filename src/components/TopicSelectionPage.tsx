@@ -102,48 +102,7 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/30" />
-        
-        {/* Animated particles */}
-        <div className="absolute inset-0">
-          {[...Array(30)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-blue-400/20 rounded-full animate-pulse"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 5}s`,
-                animationDuration: `${2 + Math.random() * 3}s`
-              }}
-              aria-hidden="true"
-            />
-          ))}
-        </div>
-        
-        {/* Floating glowing orbs */}
-        <div className="absolute inset-0">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full bg-gradient-to-r from-cyan-400/5 to-blue-500/5 blur-xl animate-float"
-              style={{
-                width: `${100 + Math.random() * 200}px`,
-                height: `${100 + Math.random() * 200}px`,
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 10}s`,
-                animationDuration: `${15 + Math.random() * 20}s`
-              }}
-              aria-hidden="true"
-            />
-          ))}
-        </div>
-      </div>
-
+    <div className="min-h-screen text-white relative overflow-hidden">
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header with Sign In button */}
