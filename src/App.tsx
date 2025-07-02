@@ -5,7 +5,6 @@ import AnimatedBackground from './components/AnimatedBackground';
 import TopicSelector from './components/TopicSelector';
 import TopicSelectionPage from './components/TopicSelectionPage';
 import AdminPage from './components/AdminPage';
-import OrganizationDashboardPage from './components/OrganizationDashboardPage';
 import TopicFormPage from './components/TopicFormPage';
 import AuthPage from './components/AuthPage';
 import Timeline from './components/Timeline';
@@ -32,7 +31,7 @@ function AppContent() {
   const [timeDirection, setTimeDirection] = useState<TimeDirection>('none');
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('years');
 
-  const { user, userProfile, loading: authLoading, isSuperAdmin, isOrgAdmin, organizations } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
 
   // Combined loading state - true if either auth or topics are loading
   const isLoading = authLoading || topicsLoading;
@@ -52,22 +51,17 @@ function AppContent() {
     [selectedEvent, sortedEvents]
   );
 
-  // Auto-redirect to appropriate dashboard when user logs in
+  // Auto-redirect to admin page when user logs in and is an admin
   useEffect(() => {
     if (user && userProfile) {
-      const isSuper = isSuperAdmin();
-      const hasOrganizations = organizations.length > 0;
+      const isAdmin = userProfile.role === 'super_admin';
       
-      // If user is a super admin and currently on auth page or topic selection, redirect to admin
-      if (isSuper && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
+      // If user is an admin and currently on auth page or topic selection, redirect to admin
+      if (isAdmin && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
         setCurrentPage('adminPage');
       }
-      // If user has organizations and is on auth page, redirect to organization dashboard
-      else if (hasOrganizations && currentPage === 'authPage') {
-        setCurrentPage('organizationDashboard');
-      }
     }
-  }, [user, userProfile, currentPage, isSuperAdmin, organizations]);
+  }, [user, userProfile, currentPage]);
 
   // Load topics from Supabase - only after auth is complete
   useEffect(() => {
@@ -122,10 +116,8 @@ function AppContent() {
         case 'a':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            if (user && isSuperAdmin()) {
+            if (user && userProfile?.role === 'super_admin') {
               setCurrentPage('adminPage');
-            } else if (user && organizations.length > 0) {
-              setCurrentPage('organizationDashboard');
             } else {
               setCurrentPage('authPage');
             }
@@ -148,7 +140,7 @@ function AppContent() {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [currentPage, showEventModal, user, isSuperAdmin, organizations]);
+  }, [currentPage, showEventModal, user, userProfile]);
 
   // Handle window resize
   useEffect(() => {
@@ -376,14 +368,12 @@ function AppContent() {
   }, [timelineStack, timelineTopics]);
 
   const handleShowAdminPage = useCallback(() => {
-    if (user && isSuperAdmin()) {
+    if (user && userProfile?.role === 'super_admin') {
       setCurrentPage('adminPage');
-    } else if (user && organizations.length > 0) {
-      setCurrentPage('organizationDashboard');
     } else {
       setCurrentPage('authPage');
     }
-  }, [user, isSuperAdmin, organizations]);
+  }, [user, userProfile]);
 
   const handleShowAuthPage = useCallback(() => {
     setCurrentPage('authPage');
@@ -464,7 +454,7 @@ function AppContent() {
           onSubmit={handleAddTopic}
           onCancel={handleBackFromForm}
           generateId={generateId}
-          returnToPage={isSuperAdmin() ? "adminPage" : "organizationDashboard"}
+          returnToPage="adminPage"
         />
       </ProtectedRoute>
     );
@@ -479,13 +469,13 @@ function AppContent() {
           onSubmit={handleUpdateTopic}
           onCancel={handleBackFromForm}
           generateId={generateId}
-          returnToPage={isSuperAdmin() ? "adminPage" : "organizationDashboard"}
+          returnToPage="adminPage"
         />
       </ProtectedRoute>
     );
   }
 
-  // Show admin page (for super admins)
+  // Show admin page
   if (currentPage === 'adminPage') {
     return (
       <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
@@ -495,21 +485,6 @@ function AppContent() {
           onAddTopic={handleShowAddTopic}
           onEditTopic={handleEditTopic}
           onBackToTopicSelection={handleBackFromAdminPage}
-        />
-      </ProtectedRoute>
-    );
-  }
-
-  // Show organization dashboard (for organization members)
-  if (currentPage === 'organizationDashboard') {
-    return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <OrganizationDashboardPage
-          onBackToTopicSelection={handleBackFromAdminPage}
-          onTopicSelectForView={handleTopicSelection}
-          onAddTopic={handleShowAddTopic}
-          onEditTopic={handleEditTopic}
-          generateId={generateId}
         />
       </ProtectedRoute>
     );
@@ -567,14 +542,12 @@ function AppContent() {
               <button
                 onClick={handleShowAdminPage}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                aria-label={user && (isSuperAdmin() || organizations.length > 0) ? 'Access dashboard' : 'Sign in to dashboard'}
+                aria-label={user && userProfile?.role === 'super_admin' ? 'Access admin panel' : 'Sign in to admin panel'}
               >
-                {user && (isSuperAdmin() || organizations.length > 0) ? (
+                {user && userProfile?.role === 'super_admin' ? (
                   <>
                     <Settings className="w-4 h-4" aria-hidden="true" />
-                    <span className="text-sm font-medium hidden sm:inline">
-                      {isSuperAdmin() ? 'Admin' : 'Dashboard'}
-                    </span>
+                    <span className="text-sm font-medium hidden sm:inline">Admin</span>
                   </>
                 ) : (
                   <>

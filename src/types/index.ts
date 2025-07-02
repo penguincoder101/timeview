@@ -24,7 +24,7 @@ export interface Topic {
 
 export type TopicId = string;
 
-export type PageType = 'topicSelection' | 'timelineView' | 'addTopic' | 'editTopic' | 'adminPage' | 'organizationDashboard' | 'authPage';
+export type PageType = 'topicSelection' | 'timelineView' | 'addTopic' | 'editTopic' | 'adminPage' | 'globalAdmin' | 'orgAdmin' | 'authPage';
 
 export type TimeDirection = 'forward' | 'backward' | 'none';
 
@@ -115,6 +115,3 @@ export interface AuthResponse {
 }
 
 export type AuthMode = 'signin' | 'register';
-
-// Organization Dashboard types
-export type OrgDashboardSection = 'overview' | 'topics' | 'members' | 'settings';
