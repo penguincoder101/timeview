@@ -18,7 +18,8 @@ import { TimelineEvent, TopicId, Topic, PageType, TimeDirection, TimelineDisplay
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('topicSelection');
   const [timelineTopics, setTimelineTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+  const [topicsLoaded, setTopicsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [selectedTopicIdForDisplay, setSelectedTopicIdForDisplay] = useState<TopicId | null>(null);
@@ -30,7 +31,10 @@ function AppContent() {
   const [timeDirection, setTimeDirection] = useState<TimeDirection>('none');
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('years');
 
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
+
+  // Combined loading state - true if either auth or topics are loading
+  const isLoading = authLoading || topicsLoading;
 
   const currentTopic = useMemo(() => 
     timelineTopics.find(topic => topic.id === currentTopicId),
@@ -59,31 +63,40 @@ function AppContent() {
     }
   }, [user, userProfile, currentPage]);
 
-  // Load topics from Supabase on component mount
+  // Load topics from Supabase - only after auth is complete
   useEffect(() => {
     const loadTopics = async () => {
-      setLoading(true);
+      // Don't load topics if auth is still loading or if topics are already loaded
+      if (authLoading || topicsLoaded) return;
+      
+      setTopicsLoading(true);
       setError(null);
       
-      const { data, error } = await fetchTopics();
-      
-      if (error) {
-        console.error('Failed to load topics:', error);
-        setError('Failed to load timeline topics. Please try again.');
-      } else if (data) {
-        setTimelineTopics(data);
-        // Set default topic if available
-        if (data.length > 0) {
-          const defaultTopic = data.find(t => t.id === 'seven-wonders') || data[0];
-          setCurrentTopicId(defaultTopic.id as TopicId);
+      try {
+        const { data, error } = await fetchTopics();
+        
+        if (error) {
+          console.error('Failed to load topics:', error);
+          setError('Failed to load timeline topics. Please try again.');
+        } else if (data) {
+          setTimelineTopics(data);
+          // Set default topic if available
+          if (data.length > 0) {
+            const defaultTopic = data.find(t => t.id === 'seven-wonders') || data[0];
+            setCurrentTopicId(defaultTopic.id as TopicId);
+          }
+          setTopicsLoaded(true);
         }
+      } catch (err) {
+        console.error('Unexpected error loading topics:', err);
+        setError('An unexpected error occurred while loading topics.');
+      } finally {
+        setTopicsLoading(false);
       }
-      
-      setLoading(false);
     };
 
     loadTopics();
-  }, []);
+  }, [authLoading, topicsLoaded]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -179,6 +192,7 @@ function AppContent() {
   }, []);
 
   const refreshTopics = useCallback(async () => {
+    setTopicsLoading(true);
     const { data, error } = await fetchTopics();
     if (error) {
       console.error('Failed to refresh topics:', error);
@@ -186,6 +200,7 @@ function AppContent() {
     } else if (data) {
       setTimelineTopics(data);
     }
+    setTopicsLoading(false);
   }, []);
 
   const handleAddTopic = useCallback(async (newTopic: Topic, returnToPage: PageType) => {
@@ -384,15 +399,17 @@ function AppContent() {
   const hasNext = currentEventIndex < sortedEvents.length - 1;
   const hasPrevious = currentEventIndex > 0;
 
-  // Show loading state
-  if (loading) {
+  // Show loading state - now combines both auth and topics loading
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <AnimatedBackground />
         <div className="relative z-10 text-center">
           <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
           <h2 className="text-2xl font-bold mb-2">Loading Timeline Explorer</h2>
-          <p className="text-gray-400">Fetching historical data...</p>
+          <p className="text-gray-400">
+            {authLoading ? 'Authenticating...' : 'Loading historical data...'}
+          </p>
         </div>
       </div>
     );
@@ -410,10 +427,14 @@ function AppContent() {
           <h2 className="text-2xl font-bold mb-4 text-red-400">Error Loading Data</h2>
           <p className="text-gray-400 mb-6">{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setError(null);
+              setTopicsLoaded(false);
+              // This will trigger the useEffect to reload topics
+            }}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors duration-200"
           >
-            Reload Page
+            Try Again
           </button>
         </div>
       </div>
