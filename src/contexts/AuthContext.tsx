@@ -15,7 +15,6 @@ interface AuthContextType {
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUpWithPassword: (data: RegisterFormData) => Promise<AuthResponse>;
   signOut: () => Promise<{ error: AuthError | null }>;
-  checkIfAdminEmail: (email: string) => Promise<boolean>;
   setCurrentOrganization: (org: Organization | null) => void;
   refreshUserData: () => Promise<void>;
   isSuperAdmin: () => boolean;
@@ -182,28 +181,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkIfAdminEmail = async (email: string): Promise<boolean> => {
-    try {
-      // Check if this email belongs to a super admin
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('email', email)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking admin email:', error);
-        return false;
-      }
-
-      return !!data;
-    } catch (error) {
-      console.error('Error checking admin email:', error);
-      return false;
-    }
-  };
-
   const signInWithMagicLink = async (email: string) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
@@ -336,7 +313,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signInWithPassword,
     signUpWithPassword,
     signOut,
-    checkIfAdminEmail,
     setCurrentOrganization,
     refreshUserData,
     isSuperAdmin,

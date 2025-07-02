@@ -15,7 +15,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isAdminEmail, setIsAdminEmail] = useState(false);
   const [existingUserEmail, setExistingUserEmail] = useState<string | null>(null);
 
   // Form data
@@ -35,7 +34,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
     organizationDescription: ''
   });
 
-  const { signInWithMagicLink, signInWithPassword, signUpWithPassword, checkIfAdminEmail } = useAuth();
+  const { signInWithMagicLink, signInWithPassword, signUpWithPassword } = useAuth();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -55,17 +54,10 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       .trim();
   };
 
-  // Handle email input and check if it's admin email
-  const handleEmailChange = async (email: string) => {
+  // Handle email input
+  const handleEmailChange = (email: string) => {
     if (mode === 'signin') {
       setSignInData(prev => ({ ...prev, email }));
-      
-      if (validateEmail(email)) {
-        const isAdmin = await checkIfAdminEmail(email);
-        setIsAdminEmail(isAdmin);
-      } else {
-        setIsAdminEmail(false);
-      }
     } else {
       setRegisterData(prev => ({ ...prev, email }));
     }
@@ -91,32 +83,19 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       return;
     }
 
+    if (!signInData.password) {
+      setError('Please enter your password');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      if (isAdminEmail) {
-        // Send magic link for admin
-        const { error } = await signInWithMagicLink(signInData.email);
-        if (error) {
-          setError(error.message);
-        } else {
-          setSuccess('Magic link sent! Please check your email and click the link to sign in.');
-          setSignInData({ email: '', password: '' });
-        }
+      const { error } = await signInWithPassword(signInData.email, signInData.password);
+      if (error) {
+        setError(error.message);
       } else {
-        // Regular password login
-        if (!signInData.password) {
-          setError('Please enter your password');
-          setIsLoading(false);
-          return;
-        }
-
-        const { error } = await signInWithPassword(signInData.email, signInData.password);
-        if (error) {
-          setError(error.message);
-        } else {
-          setSuccess('Successfully signed in!');
-        }
+        setSuccess('Successfully signed in!');
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
@@ -370,7 +349,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   {mode === 'signin' ? (
-                    isAdminEmail ? <Mail className="w-8 h-8 text-white" /> : <Lock className="w-8 h-8 text-white" />
+                    <Lock className="w-8 h-8 text-white" />
                   ) : (
                     <User className="w-8 h-8 text-white" />
                   )}
@@ -380,9 +359,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
                 </h2>
                 <p className="text-gray-400">
                   {mode === 'signin' 
-                    ? (isAdminEmail 
-                        ? 'We\'ll send you a secure login link' 
-                        : 'Enter your credentials to continue')
+                    ? 'Enter your credentials to continue'
                     : 'Join Timeline Explorer today'
                   }
                 </p>
@@ -427,61 +404,54 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
                       disabled={isLoading}
                     />
                   </div>
-                  {isAdminEmail && (
-                    <p className="mt-2 text-xs text-blue-400">
-                      Admin email detected - we'll send you a magic link
-                    </p>
-                  )}
                 </div>
 
-                {/* Password Field (only for non-admin emails) */}
-                {!isAdminEmail && signInData.email && validateEmail(signInData.email) && (
-                  <div>
-                    <label htmlFor="signin-password" className="block text-sm font-medium text-gray-300 mb-2">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Lock className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        id="signin-password"
-                        value={signInData.password}
-                        onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
-                        placeholder="Enter your password"
-                        className="w-full pl-10 pr-12 py-3 bg-gray-800/30 border border-gray-600/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                        required
-                        disabled={isLoading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5 text-gray-400 hover:text-gray-300" />
-                        ) : (
-                          <Eye className="w-5 h-5 text-gray-400 hover:text-gray-300" />
-                        )}
-                      </button>
+                {/* Password Field */}
+                <div>
+                  <label htmlFor="signin-password" className="block text-sm font-medium text-gray-300 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="w-5 h-5 text-gray-400" />
                     </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      id="signin-password"
+                      value={signInData.password}
+                      onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter your password"
+                      className="w-full pl-10 pr-12 py-3 bg-gray-800/30 border border-gray-600/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                      required
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5 text-gray-400 hover:text-gray-300" />
+                      ) : (
+                        <Eye className="w-5 h-5 text-gray-400 hover:text-gray-300" />
+                      )}
+                    </button>
                   </div>
-                )}
+                </div>
 
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading || !signInData.email || (!isAdminEmail && !signInData.password)}
+                  disabled={isLoading || !signInData.email || !signInData.password}
                   className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl text-white font-semibold transition-all duration-200 hover:scale-105 disabled:hover:scale-100 shadow-lg hover:shadow-xl disabled:shadow-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>{isAdminEmail ? 'Sending Magic Link...' : 'Signing In...'}</span>
+                      <span>Signing In...</span>
                     </div>
                   ) : (
-                    isAdminEmail ? 'Send Magic Link' : 'Sign In'
+                    'Sign In'
                   )}
                 </button>
               </form>
@@ -705,7 +675,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
               <div className="mt-6 text-center">
                 <p className="text-gray-500 text-sm">
                   {mode === 'signin' 
-                    ? 'Admins receive secure magic links, users sign in with passwords'
+                    ? 'All users sign in with email and password'
                     : 'Individual accounts are activated immediately, organizations require approval'
                   }
                 </p>
