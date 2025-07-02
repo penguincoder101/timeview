@@ -24,7 +24,7 @@ export interface Topic {
 
 export type TopicId = string;
 
-export type PageType = 'topicSelection' | 'timelineView' | 'addTopic' | 'editTopic' | 'adminPage' | 'globalAdmin' | 'orgAdmin';
+export type PageType = 'topicSelection' | 'timelineView' | 'addTopic' | 'editTopic' | 'adminPage' | 'globalAdmin' | 'orgAdmin' | 'authPage';
 
 export type TimeDirection = 'forward' | 'backward' | 'none';
 

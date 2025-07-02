@@ -1,19 +1,21 @@
 import React, { useEffect, useRef } from 'react';
-import { History, Clock, ChevronRight, Settings, Mountain, Crown } from 'lucide-react';
+import { History, Clock, ChevronRight, LogIn, Mountain, Crown } from 'lucide-react';
 import { Topic, TopicId } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TopicSelectionPageProps {
   topics: Topic[];
   onTopicSelect: (topicId: TopicId) => void;
-  onShowAdminPage: () => void;
+  onShowAuthPage: () => void;
 }
 
 const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({ 
   topics, 
   onTopicSelect, 
-  onShowAdminPage 
+  onShowAuthPage 
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
+  const { user, userProfile } = useAuth();
 
   // Keyboard navigation for topic grid
   useEffect(() => {
@@ -144,28 +146,45 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
 
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
-        <header className="text-center py-16 px-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl" aria-hidden="true">
-                <History className="w-12 h-12 text-white" />
+        {/* Header with Sign In button */}
+        <header className="border-b border-gray-800/30 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl" aria-hidden="true">
+                  <History className="w-12 h-12 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent">
+                    Timeline Explorer
+                  </h1>
+                  <p className="text-gray-400">Journey through history's most fascinating moments</p>
+                </div>
               </div>
+              
+              {/* Sign In / Admin button */}
+              {!user || userProfile?.role !== 'super_admin' ? (
+                <button
+                  onClick={onShowAuthPage}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 hover:border-blue-500/50 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  aria-label="Sign in to admin panel"
+                >
+                  <LogIn className="w-4 h-4" aria-hidden="true" />
+                  <span className="text-sm font-medium hidden sm:inline">Sign In</span>
+                </button>
+              ) : null}
             </div>
-            
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent">
-              Timeline Explorer
-            </h1>
-            
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <section className="text-center py-16 px-6">
+          <div className="max-w-4xl mx-auto">
             <p className="text-xl md:text-2xl text-gray-300 mb-4 leading-relaxed">
-              Journey through history's most fascinating moments
-            </p>
-            
-            <p className="text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
               Choose a timeline below to explore pivotal events, discover hidden stories, and witness the moments that shaped our world.
             </p>
           </div>
-        </header>
+        </section>
 
         {/* Topic Selection */}
         <main className="flex-1 px-6 pb-16">
@@ -234,57 +253,15 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
                   </button>
                 );
               })}
-
-              {/* Admin Panel Card */}
-              <button
-                onClick={onShowAdminPage}
-                className="group relative bg-gray-800/10 backdrop-blur-sm border-2 border-dashed border-gray-600/50 rounded-2xl overflow-hidden hover:border-purple-500/50 transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/10 text-left focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                role="gridcell"
-                aria-label="Access admin panel to manage timeline topics"
-                tabIndex={-1}
-              >
-                {/* Background gradient on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden="true" />
-                
-                {/* Card Content */}
-                <div className="relative z-10 p-6">
-                  {/* Title */}
-                  <h2 className="text-2xl font-bold text-white mb-4 group-hover:text-purple-100 transition-colors duration-300">
-                    Admin Panel
-                  </h2>
-                  
-                  {/* Placeholder for admin "image" */}
-                  <div className="mb-4">
-                    <div className="w-full h-48 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
-                      <Settings className="w-16 h-16 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" aria-hidden="true" />
-                    </div>
-                  </div>
-                  
-                  {/* Description */}
-                  <p className="text-gray-400 leading-relaxed mb-6 group-hover:text-gray-300 transition-colors duration-300">
-                    Manage your timeline topics. Create new timelines, edit existing ones, and organize your historical content.
-                  </p>
-                  
-                  {/* Footer */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Settings className="w-4 h-4" aria-hidden="true" />
-                      <span>Manage topics</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-purple-400 group-hover:text-purple-300 transition-colors duration-300">
-                      <span className="text-sm font-medium">Manage</span>
-                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" aria-hidden="true" />
-                    </div>
-                  </div>
-                </div>
-              </button>
             </div>
             
             {/* Footer text */}
             <div className="text-center mt-16">
               <p className="text-gray-500 text-sm">
-                Select a timeline to begin your historical journey or access the admin panel to manage content
+                Select a timeline to begin your historical journey
+                {!user && (
+                  <span> or <button onClick={onShowAuthPage} className="text-blue-400 hover:text-blue-300 underline">sign in</button> to manage content</span>
+                )}
               </p>
             </div>
           </div>

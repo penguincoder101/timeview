@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { History, ChevronLeft, Settings } from 'lucide-react';
-import { AuthProvider } from './contexts/AuthContext';
+import { History, ChevronLeft, Settings, LogIn } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AnimatedBackground from './components/AnimatedBackground';
 import TopicSelector from './components/TopicSelector';
 import TopicSelectionPage from './components/TopicSelectionPage';
 import AdminPage from './components/AdminPage';
 import TopicFormPage from './components/TopicFormPage';
+import AuthPage from './components/AuthPage';
 import Timeline from './components/Timeline';
 import EventCard from './components/EventCard';
 import EmptyState from './components/EmptyState';
@@ -29,6 +30,8 @@ function AppContent() {
   const [timeDirection, setTimeDirection] = useState<TimeDirection>('none');
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('years');
 
+  const { user, userProfile } = useAuth();
+
   const currentTopic = useMemo(() => 
     timelineTopics.find(topic => topic.id === currentTopicId),
     [currentTopicId, timelineTopics]
@@ -43,6 +46,18 @@ function AppContent() {
     selectedEvent ? sortedEvents.findIndex(event => event.id === selectedEvent.id) : -1,
     [selectedEvent, sortedEvents]
   );
+
+  // Auto-redirect to admin page when user logs in and is an admin
+  useEffect(() => {
+    if (user && userProfile) {
+      const isAdmin = userProfile.role === 'super_admin';
+      
+      // If user is an admin and currently on auth page or topic selection, redirect to admin
+      if (isAdmin && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
+        setCurrentPage('adminPage');
+      }
+    }
+  }, [user, userProfile, currentPage]);
 
   // Load topics from Supabase on component mount
   useEffect(() => {
@@ -88,7 +103,11 @@ function AppContent() {
         case 'a':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            setCurrentPage('adminPage');
+            if (user && userProfile?.role === 'super_admin') {
+              setCurrentPage('adminPage');
+            } else {
+              setCurrentPage('authPage');
+            }
           }
           break;
         case 'Escape':
@@ -108,7 +127,7 @@ function AppContent() {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [currentPage, showEventModal]);
+  }, [currentPage, showEventModal, user, userProfile]);
 
   // Handle window resize
   useEffect(() => {
@@ -334,10 +353,22 @@ function AppContent() {
   }, [timelineStack, timelineTopics]);
 
   const handleShowAdminPage = useCallback(() => {
-    setCurrentPage('adminPage');
+    if (user && userProfile?.role === 'super_admin') {
+      setCurrentPage('adminPage');
+    } else {
+      setCurrentPage('authPage');
+    }
+  }, [user, userProfile]);
+
+  const handleShowAuthPage = useCallback(() => {
+    setCurrentPage('authPage');
   }, []);
 
   const handleBackFromAdminPage = useCallback(() => {
+    setCurrentPage('topicSelection');
+  }, []);
+
+  const handleBackFromAuthPage = useCallback(() => {
     setCurrentPage('topicSelection');
   }, []);
 
@@ -387,6 +418,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // Show auth page
+  if (currentPage === 'authPage') {
+    return <AuthPage onBackToTopicSelection={handleBackFromAuthPage} />;
   }
 
   // Show add topic page
@@ -439,7 +475,7 @@ function AppContent() {
       <TopicSelectionPage
         topics={timelineTopics}
         onTopicSelect={handleTopicSelection}
-        onShowAdminPage={handleShowAdminPage}
+        onShowAuthPage={handleShowAuthPage}
       />
     );
   }
@@ -481,14 +517,23 @@ function AppContent() {
             </button>
             
             <div className="flex items-center gap-4">
-              {/* Admin button - only show on large screens */}
+              {/* Auth/Admin button */}
               <button
                 onClick={handleShowAdminPage}
-                className="hidden md:flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                aria-label="Access admin panel"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                aria-label={user && userProfile?.role === 'super_admin' ? 'Access admin panel' : 'Sign in to admin panel'}
               >
-                <Settings className="w-4 h-4" aria-hidden="true" />
-                <span className="text-sm font-medium">Admin</span>
+                {user && userProfile?.role === 'super_admin' ? (
+                  <>
+                    <Settings className="w-4 h-4" aria-hidden="true" />
+                    <span className="text-sm font-medium hidden sm:inline">Admin</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" aria-hidden="true" />
+                    <span className="text-sm font-medium hidden sm:inline">Sign In</span>
+                  </>
+                )}
               </button>
               
               {/* Topic Selector - Hidden on small screens */}
