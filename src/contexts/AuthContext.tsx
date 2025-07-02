@@ -47,46 +47,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile and related data with retry logic
+  // Fetch user profile and related data
   const fetchUserData = async (userId: string) => {
-    let profileData = null;
-    let attempts = 0;
-    const maxAttempts = 5; // Number of retries
-    const delayMs = 500; // Delay in milliseconds between retries
-
     try {
-      // Retry loop for fetching user profile
-      while (attempts < maxAttempts) {
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
+      // Fetch user profile - use maybeSingle() to handle cases where profile doesn't exist
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-        if (error) {
-          console.error(`Attempt ${attempts + 1}: Error fetching user profile:`, error);
-          // For certain errors, we might want to break early
-          if (error.code === 'PGRST116') {
-            // Row not found - this is expected during retry, continue
-          } else {
-            // Other errors might be more serious, but let's continue retrying
-            console.error('Unexpected error during profile fetch:', error);
-          }
-        } else if (data) {
-          profileData = data;
-          break; // Profile found, exit loop
-        }
-
-        attempts++;
-        if (attempts < maxAttempts) {
-          console.log(`Profile not found, retrying in ${delayMs}ms... (attempt ${attempts}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        return;
       }
 
-      // If profileData is still null after all attempts
+      // If no profile exists, set userProfile to null
       if (!profileData) {
-        console.warn(`No user profile found for user after ${maxAttempts} attempts:`, userId);
+        console.warn('No user profile found for user:', userId);
         setUserProfile(null);
         setOrganizations([]);
         setMemberships([]);
@@ -94,7 +72,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      // Successfully found profile, set it
       setUserProfile({
         id: profileData.id,
         email: profileData.email,
