@@ -183,24 +183,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signInWithMagicLink = async (email: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}`,
-      },
-    });
-    setLoading(false);
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}`,
+        },
+      });
+      return { error };
+    } catch (error) {
+      return { error: error as AuthError };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signInWithPassword = async (email: string, password: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setLoading(false);
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { error };
+    } catch (error) {
+      return { error: error as AuthError };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUpWithPassword = async (data: RegisterFormData): Promise<AuthResponse> => {
@@ -223,7 +233,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (authError.message?.toLowerCase().includes('user already registered') || 
             authError.message?.toLowerCase().includes('email already registered') ||
             authError.message?.toLowerCase().includes('already been registered')) {
-          setLoading(false);
           return { 
             error: null, 
             userExists: true, 
@@ -231,7 +240,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           };
         }
         
-        setLoading(false);
         return { error: authError };
       }
 
@@ -254,19 +262,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      setLoading(false);
       return { error: null };
     } catch (error) {
-      setLoading(false);
       return { error: error as AuthError };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    setLoading(false);
-    return { error };
+    try {
+      const { error } = await supabase.auth.signOut();
+      return { error };
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      return { error: error as AuthError };
+    } finally {
+      // Always reset loading state, regardless of success or failure
+      setLoading(false);
+    }
   };
 
   // Helper functions for role checking

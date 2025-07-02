@@ -83,11 +83,12 @@ const AdminPage: React.FC<AdminPageProps> = ({
   onEditTopic,
   onBackToTopicSelection
 }) => {
-  const { user, signOut, isSuperAdmin } = useAuth();
+  const { user, signOut, isSuperAdmin, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'topics' | 'organizations'>('topics');
   const [pendingOrganizations, setPendingOrganizations] = useState<PendingOrganization[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [processingOrgId, setProcessingOrgId] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Fetch pending organizations if user is super admin
   useEffect(() => {
@@ -169,9 +170,18 @@ const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
-      console.error('Error signing out:', error);
+    setSigningOut(true);
+    try {
+      const { error } = await signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        alert('Failed to sign out. Please try again.');
+      }
+      // Note: Don't set signingOut to false here - the auth state change will handle navigation
+    } catch (error) {
+      console.error('Unexpected error during sign out:', error);
+      alert('An unexpected error occurred. Please try again.');
+      setSigningOut(false);
     }
   };
 
@@ -219,11 +229,18 @@ const AdminPage: React.FC<AdminPageProps> = ({
               
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 hover:border-red-500/50 rounded-lg text-red-400 hover:text-red-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                disabled={signingOut || loading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 disabled:bg-gray-600/20 border border-red-500/30 hover:border-red-500/50 disabled:border-gray-500/30 rounded-lg text-red-400 hover:text-red-300 disabled:text-gray-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed"
                 title="Sign out"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline text-sm font-medium">Sign Out</span>
+                {signingOut || loading ? (
+                  <div className="w-4 h-4 border-2 border-gray-500/30 border-t-gray-500 rounded-full animate-spin" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline text-sm font-medium">
+                  {signingOut ? 'Signing Out...' : 'Sign Out'}
+                </span>
               </button>
             </div>
           </div>
