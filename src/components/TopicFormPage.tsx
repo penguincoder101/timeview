@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { History, ChevronLeft, Plus, Trash2, Save, Calendar, Tag, Link, FileText, Image, ArrowLeft, ArrowRight, Eye, Clock, GripVertical, Edit3, Globe, Lock } from 'lucide-react';
+import { History, ChevronLeft, Plus, Trash2, Save, Calendar, Tag, Link, FileText, Image, ArrowLeft, ArrowRight, Eye, Clock, GripVertical, Edit3, Globe, Lock, Building } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import {
