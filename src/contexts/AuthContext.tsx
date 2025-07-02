@@ -93,8 +93,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
+      // Handle case where membershipsData might be null
+      const validMembershipsData = membershipsData || [];
+
       // Then fetch organizations separately to avoid ambiguous column references
-      const organizationIds = membershipsData.map(m => m.organization_id);
+      const organizationIds = validMembershipsData.map(m => m.organization_id);
       
       let organizationsData: any[] = [];
       if (organizationIds.length > 0) {
@@ -112,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Transform memberships data
-      const transformedMemberships: OrganizationMembership[] = membershipsData.map(m => {
+      const transformedMemberships: OrganizationMembership[] = validMembershipsData.map(m => {
         const organization = organizationsData.find(org => org.id === m.organization_id);
         
         return {
@@ -162,44 +165,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Clear any stale session data on initialization
-    const clearStaleSession = async () => {
-      try {
-        // Check if there's a session and if it's valid
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error && error.message.includes('refresh_token_not_found')) {
-          // Clear the session if refresh token is invalid
-          console.warn('Clearing stale session due to invalid refresh token');
-          await supabase.auth.signOut();
-          return null;
-        }
-        
-        return session;
-      } catch (error) {
-        console.error('Error checking session:', error);
-        return null;
-      }
-    };
-
-    // Get initial session
-    const getInitialSession = async () => {
-      const session = await clearStaleSession();
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserData(session.user.id);
-      }
-      setLoading(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
+    // Listen for auth changes - this is the sole mechanism for managing auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session);
+        
+        // Always set loading to true when processing auth state changes
+        setLoading(true);
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -212,6 +185,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setMemberships([]);
           setCurrentOrganization(null);
         }
+        
+        // Always set loading to false after processing is complete
         setLoading(false);
       }
     );
