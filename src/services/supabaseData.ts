@@ -90,14 +90,21 @@ function transformEventToDatabase(event: TimelineEvent, topicId: string, userId?
   };
 }
 
-// Fetch all topics with their events (respects RLS)
-export async function fetchTopics(): Promise<{ data: Topic[] | null; error: Error | null }> {
+// Fetch all topics with their events (respects RLS) - optionally filter by organization
+export async function fetchTopics(organizationId?: string): Promise<{ data: Topic[] | null; error: Error | null }> {
   try {
-    // Fetch topics (RLS will filter based on user permissions)
-    const { data: topicsData, error: topicsError } = await supabase
+    // Build query for topics
+    let topicsQuery = supabase
       .from('topics')
       .select('*')
       .order('name');
+
+    // Filter by organization if specified
+    if (organizationId) {
+      topicsQuery = topicsQuery.eq('organization_id', organizationId);
+    }
+
+    const { data: topicsData, error: topicsError } = await topicsQuery;
 
     if (topicsError) {
       throw new Error(`Failed to fetch topics: ${topicsError.message}`);
@@ -109,6 +116,11 @@ export async function fetchTopics(): Promise<{ data: Topic[] | null; error: Erro
 
     // Fetch all events for the accessible topics
     const topicIds = topicsData.map(t => t.id);
+    
+    if (topicIds.length === 0) {
+      return { data: [], error: null };
+    }
+
     const { data: eventsData, error: eventsError } = await supabase
       .from('events')
       .select('*')
@@ -283,6 +295,7 @@ export async function fetchOrganizations(): Promise<{ data: Organization[] | nul
       createdBy: org.created_by,
       createdAt: org.created_at,
       updatedAt: org.updated_at,
+      status: org.status,
     })) || [];
 
     return { data: organizations, error: null };
@@ -319,6 +332,7 @@ export async function createOrganization(org: Omit<Organization, 'id' | 'created
       createdBy: data.created_by,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
+      status: data.status,
     };
 
     return { data: organization, error: null };
