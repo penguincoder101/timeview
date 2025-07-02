@@ -11,6 +11,7 @@ import EventCard from './components/EventCard';
 import EmptyState from './components/EmptyState';
 import Modal from './components/Modal';
 import ProtectedRoute from './components/ProtectedRoute';
+import Loader from './components/ui/3d-box-loader-animation';
 import { fetchTopics, createTopic, updateTopic, deleteTopic } from './services/supabaseData';
 import { TimelineEvent, TopicId, Topic, PageType, TimeDirection, TimelineDisplayMode } from './types';
 
@@ -353,14 +354,14 @@ function AppContent() {
   const hasNext = currentEventIndex < sortedEvents.length - 1;
   const hasPrevious = currentEventIndex > 0;
 
-  // Show loading state
+  // Show loading state with new 3D loader
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <AnimatedBackground />
         <div className="relative z-10 text-center">
-          <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
-          <h2 className="text-2xl font-bold mb-2">Loading Timeline Explorer</h2>
+          <Loader />
+          <h2 className="text-2xl font-bold mb-2 mt-8">Loading Timeline Explorer</h2>
           <p className="text-gray-400">Fetching historical data...</p>
         </div>
       </div>
