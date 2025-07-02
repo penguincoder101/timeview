@@ -11,10 +11,8 @@ interface AuthContextType {
   memberships: OrganizationMembership[];
   currentOrganization: Organization | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signIn: (email: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
-  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   setCurrentOrganization: (org: Organization | null) => void;
   refreshUserData: () => Promise<void>;
   isSuperAdmin: () => boolean;
@@ -180,21 +178,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
-    });
-    setLoading(false);
-    return { error };
-  };
-
-  const signUp = async (email: string, password: string) => {
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}`,
+      },
     });
     setLoading(false);
     return { error };
@@ -204,13 +194,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     const { error } = await supabase.auth.signOut();
     setLoading(false);
-    return { error };
-  };
-
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
     return { error };
   };
 
@@ -255,9 +238,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     currentOrganization,
     loading,
     signIn,
-    signUp,
     signOut,
-    resetPassword,
     setCurrentOrganization,
     refreshUserData,
     isSuperAdmin,

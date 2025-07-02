@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, ChevronLeft, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { History, ChevronLeft, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import AnimatedBackground from './AnimatedBackground';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -8,26 +8,16 @@ interface AuthPageProps {
 }
 
 const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showResetPassword, setShowResetPassword] = useState(false);
 
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn } = useAuth();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-  };
-
-  const validatePassword = (password: string) => {
-    return password.length >= 6;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,76 +30,21 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
       return;
     }
 
-    if (!validatePassword(password)) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
-    if (isSignUp && password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error } = await signUp(email, password);
-        if (error) {
-          setError(error.message);
-        } else {
-          setSuccess('Account created successfully! Please check your email to verify your account.');
-          setEmail('');
-          setPassword('');
-          setConfirmPassword('');
-        }
-      } else {
-        const { error } = await signIn(email, password);
-        if (error) {
-          setError(error.message);
-        }
-        // If successful, the auth context will handle the redirect
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { error } = await resetPassword(email);
+      const { error } = await signIn(email);
       if (error) {
         setError(error.message);
       } else {
-        setSuccess('Password reset email sent! Please check your inbox.');
-        setShowResetPassword(false);
+        setSuccess('Magic link sent! Please check your email and click the link to sign in.');
+        setEmail('');
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setError('');
-    setSuccess('');
-    setPassword('');
-    setConfirmPassword('');
   };
 
   return (
@@ -151,18 +86,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
             {/* Title */}
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-white" />
+                <Mail className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                {showResetPassword ? 'Reset Password' : isSignUp ? 'Create Admin Account' : 'Admin Sign In'}
+                Admin Sign In
               </h2>
               <p className="text-gray-400">
-                {showResetPassword 
-                  ? 'Enter your email to receive a password reset link'
-                  : isSignUp 
-                    ? 'Create your admin account to manage timelines'
-                    : 'Sign in to access the admin dashboard'
-                }
+                Enter your email to receive a secure login link
               </p>
             </div>
 
@@ -182,7 +112,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
             )}
 
             {/* Form */}
-            <form onSubmit={showResetPassword ? handleResetPassword : handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email Field */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
@@ -205,72 +135,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
                 </div>
               </div>
 
-              {/* Password Field */}
-              {!showResetPassword && (
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      id="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full pl-10 pr-12 py-3 bg-gray-800/30 border border-gray-600/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                      required
-                      disabled={isLoading}
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300 transition-colors duration-200"
-                      disabled={isLoading}
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Confirm Password Field (Sign Up only) */}
-              {isSignUp && !showResetPassword && (
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      id="confirmPassword"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm your password"
-                      className="w-full pl-10 pr-12 py-3 bg-gray-800/30 border border-gray-600/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                      required
-                      disabled={isLoading}
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300 transition-colors duration-200"
-                      disabled={isLoading}
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* Submit Button */}
               <button
                 type="submit"
@@ -280,51 +144,19 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBackToTopicSelection }) => {
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>
-                      {showResetPassword ? 'Sending...' : isSignUp ? 'Creating Account...' : 'Signing In...'}
-                    </span>
+                    <span>Sending Magic Link...</span>
                   </div>
                 ) : (
-                  showResetPassword ? 'Send Reset Email' : isSignUp ? 'Create Account' : 'Sign In'
+                  'Send Magic Link'
                 )}
               </button>
             </form>
 
-            {/* Footer Links */}
-            <div className="mt-6 text-center space-y-3">
-              {!showResetPassword && (
-                <>
-                  <button
-                    onClick={toggleMode}
-                    disabled={isLoading}
-                    className="text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-                  </button>
-
-                  {!isSignUp && (
-                    <div>
-                      <button
-                        onClick={() => setShowResetPassword(true)}
-                        disabled={isLoading}
-                        className="text-gray-400 hover:text-gray-300 transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Forgot your password?
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {showResetPassword && (
-                <button
-                  onClick={() => setShowResetPassword(false)}
-                  disabled={isLoading}
-                  className="text-blue-400 hover:text-blue-300 transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Back to sign in
-                </button>
-              )}
+            {/* Info */}
+            <div className="mt-6 text-center">
+              <p className="text-gray-500 text-sm">
+                We'll send you a secure link to sign in without a password
+              </p>
             </div>
           </div>
         </div>
