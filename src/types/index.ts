@@ -17,14 +17,11 @@ export interface Topic {
   name: string;
   events: TimelineEvent[];
   defaultDisplayMode?: TimelineDisplayMode;
-  organizationId?: string;
-  createdBy?: string;
-  isPublic?: boolean;
 }
 
 export type TopicId = string;
 
-export type PageType = 'topicSelection' | 'timelineView' | 'addTopic' | 'editTopic' | 'adminPage' | 'globalAdmin' | 'orgAdmin' | 'authPage' | 'organizationDashboard';
+export type PageType = 'topicSelection' | 'timelineView';
 
 export type TimeDirection = 'forward' | 'backward' | 'none';
 
@@ -47,74 +44,4 @@ export interface NewTopicForm {
   name: string;
   events: NewEventForm[];
   defaultDisplayMode?: TimelineDisplayMode;
-  organizationId?: string;
-  isPublic?: boolean;
 }
-
-// User and Organization types
-export interface UserProfile {
-  id: string;
-  email: string;
-  fullName?: string;
-  avatarUrl?: string;
-  role: 'super_admin' | 'standard_user';
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
-  status?: 'pending' | 'approved' | 'rejected';
-}
-
-export interface OrganizationMembership {
-  id: string;
-  userId: string;
-  organizationId: string;
-  role: 'org_admin' | 'org_editor' | 'org_viewer';
-  permissions?: Record<string, any>;
-  createdAt: string;
-  updatedAt: string;
-  // Populated fields
-  user?: UserProfile;
-  organization?: Organization;
-}
-
-export type OrganizationRole = 'org_admin' | 'org_editor' | 'org_viewer';
-export type GlobalRole = 'super_admin' | 'standard_user';
-
-// Auth form types
-export interface SignInFormData {
-  email: string;
-  password?: string;
-}
-
-export interface RegisterFormData {
-  email: string;
-  password: string;
-  confirmPassword: string;
-  fullName: string;
-  isOrganization: boolean;
-  // Organization fields (only if isOrganization is true)
-  organizationName?: string;
-  organizationSlug?: string;
-  organizationDescription?: string;
-}
-
-// Enhanced auth response types
-export interface AuthResponse {
-  error: any | null;
-  userExists?: boolean;
-  existingUserEmail?: string;
-}
-
-export type AuthMode = 'signin' | 'register';
-
-// Organization dashboard types
-export type OrgDashboardSection = 'overview' | 'topics' | 'members';

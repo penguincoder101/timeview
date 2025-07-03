@@ -1,21 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import { History, Clock, ChevronRight, LogIn, Mountain, Crown } from 'lucide-react';
+import { History, Clock, ChevronRight, Mountain, Crown } from 'lucide-react';
 import { Topic, TopicId } from '../types';
-import { useAuth } from '../contexts/AuthContext';
 
 interface TopicSelectionPageProps {
   topics: Topic[];
   onTopicSelect: (topicId: TopicId) => void;
-  onShowAuthPage: () => void;
 }
 
 const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({ 
   topics, 
-  onTopicSelect, 
-  onShowAuthPage 
+  onTopicSelect
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
-  const { user, userProfile, isSuperAdmin } = useAuth();
 
   // Keyboard navigation for topic grid
   useEffect(() => {
@@ -146,7 +142,7 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
 
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header with Sign In button */}
+        {/* Header */}
         <header className="border-b border-gray-800/30 backdrop-blur-sm">
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between">
@@ -161,18 +157,6 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
                   <p className="text-gray-400">Journey through history's most fascinating moments</p>
                 </div>
               </div>
-              
-              {/* Sign In / Admin button */}
-              {!user || !isSuperAdmin() ? (
-                <button
-                  onClick={onShowAuthPage}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 hover:border-blue-500/50 rounded-lg text-blue-400 hover:text-blue-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                  aria-label="Sign in to admin panel"
-                >
-                  <LogIn className="w-4 h-4" aria-hidden="true" />
-                  <span className="text-sm font-medium hidden sm:inline">Sign In</span>
-                </button>
-              ) : null}
             </div>
           </div>
         </header>
@@ -259,9 +243,6 @@ const TopicSelectionPage: React.FC<TopicSelectionPageProps> = ({
             <div className="text-center mt-16">
               <p className="text-gray-500 text-sm">
                 Select a timeline to begin your historical journey
-                {!user && (
-                  <span> or <button onClick={onShowAuthPage} className="text-blue-400 hover:text-blue-300 underline">sign in</button> to manage content</span>
-                )}
               </p>
             </div>
           </div>
