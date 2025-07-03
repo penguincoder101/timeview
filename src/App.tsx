@@ -1,28 +1,21 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { History, ChevronLeft, Settings, LogIn } from 'lucide-react';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { History, ChevronLeft } from 'lucide-react';
 import AnimatedBackground from './components/AnimatedBackground';
 import TopicSelector from './components/TopicSelector';
 import TopicSelectionPage from './components/TopicSelectionPage';
-import AdminPage from './components/AdminPage';
-import OrganizationDashboardPage from './components/OrganizationDashboardPage';
-import TopicFormPage from './components/TopicFormPage';
-import AuthPage from './components/AuthPage';
 import Timeline from './components/Timeline';
 import EventCard from './components/EventCard';
 import EmptyState from './components/EmptyState';
 import Modal from './components/Modal';
-import ProtectedRoute from './components/ProtectedRoute';
-import { fetchTopics, createTopic, updateTopic, deleteTopic } from './services/supabaseData';
+import { fetchTopics } from './services/supabaseData';
 import { TimelineEvent, TopicId, Topic, PageType, TimeDirection, TimelineDisplayMode } from './types';
 
-function AppContent() {
+function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('topicSelection');
   const [timelineTopics, setTimelineTopics] = useState<Topic[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [topicsLoaded, setTopicsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [selectedTopicIdForDisplay, setSelectedTopicIdForDisplay] = useState<TopicId | null>(null);
   const [currentTopicId, setCurrentTopicId] = useState<TopicId>('seven-wonders');
   const [timelineStack, setTimelineStack] = useState<TopicId[]>([]);
@@ -31,11 +24,6 @@ function AppContent() {
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 768);
   const [timeDirection, setTimeDirection] = useState<TimeDirection>('none');
   const [timelineDisplayMode, setTimelineDisplayMode] = useState<TimelineDisplayMode>('years');
-
-  const { user, userProfile, loading: authLoading, isSuperAdmin, organizations, currentOrganization } = useAuth();
-
-  // Combined loading state - true if either auth or topics are loading
-  const isLoading = authLoading || topicsLoading;
 
   const currentTopic = useMemo(() => 
     timelineTopics.find(topic => topic.id === currentTopicId),
@@ -52,34 +40,15 @@ function AppContent() {
     [selectedEvent, sortedEvents]
   );
 
-  // Auto-redirect to appropriate dashboard when user logs in
-  useEffect(() => {
-    if (user && userProfile) {
-      const isAdmin = userProfile.role === 'super_admin';
-      const hasOrganizations = organizations.length > 0;
-      
-      // If user is a super admin and currently on auth page or topic selection, redirect to admin
-      if (isAdmin && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
-        setCurrentPage('adminPage');
-      }
-      // If user has organizations and is not a super admin, redirect to organization dashboard
-      else if (!isAdmin && hasOrganizations && (currentPage === 'authPage' || currentPage === 'topicSelection')) {
-        setCurrentPage('organizationDashboard');
-      }
-    }
-  }, [user, userProfile, currentPage, organizations]);
-
-  // Load topics from Supabase - only after auth is complete
+  // Load topics from Supabase
   useEffect(() => {
     const loadTopics = async () => {
-      // Don't load topics if auth is still loading or if topics are already loaded
-      if (authLoading || topicsLoaded) return;
+      if (topicsLoaded) return;
       
       setTopicsLoading(true);
       setError(null);
       
       try {
-        // Load all topics (RLS will filter based on user permissions)
         const { data, error } = await fetchTopics();
         
         if (error) {
@@ -103,7 +72,7 @@ function AppContent() {
     };
 
     loadTopics();
-  }, [authLoading, topicsLoaded]);
+  }, [topicsLoaded]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -120,18 +89,6 @@ function AppContent() {
             setCurrentPage('topicSelection');
           }
           break;
-        case 'a':
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            if (user && userProfile?.role === 'super_admin') {
-              setCurrentPage('adminPage');
-            } else if (user && organizations.length > 0) {
-              setCurrentPage('organizationDashboard');
-            } else {
-              setCurrentPage('authPage');
-            }
-          }
-          break;
         case 'Escape':
           if (currentPage === 'timelineView') {
             handleBackToTopics();
@@ -142,14 +99,14 @@ function AppContent() {
         case '?':
           // Show keyboard shortcuts help (could be implemented later)
           event.preventDefault();
-          console.log('Keyboard shortcuts: Ctrl+H (Home), Ctrl+A (Admin), Esc (Back), Arrow keys (Navigate)');
+          console.log('Keyboard shortcuts: Ctrl+H (Home), Esc (Back), Arrow keys (Navigate)');
           break;
       }
     };
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [currentPage, showEventModal, user, userProfile, organizations]);
+  }, [currentPage, showEventModal]);
 
   // Handle window resize
   useEffect(() => {
@@ -195,78 +152,6 @@ function AppContent() {
       return () => clearTimeout(timer);
     }
   }, [timeDirection]);
-
-  const generateId = useCallback(() => {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-  }, []);
-
-  const refreshTopics = useCallback(async () => {
-    setTopicsLoading(true);
-    const { data, error } = await fetchTopics();
-    if (error) {
-      console.error('Failed to refresh topics:', error);
-      setError('Failed to refresh timeline topics.');
-    } else if (data) {
-      setTimelineTopics(data);
-    }
-    setTopicsLoading(false);
-  }, []);
-
-  const handleAddTopic = useCallback(async (newTopic: Topic, returnToPage: PageType) => {
-    // Set organization ID if creating from organization dashboard
-    if (returnToPage === 'organizationDashboard' && currentOrganization) {
-      newTopic.organizationId = currentOrganization.id;
-    }
-    
-    const { data, error } = await createTopic(newTopic);
-    
-    if (error) {
-      console.error('Failed to create topic:', error);
-      setError('Failed to create timeline topic. Please try again.');
-      return;
-    }
-    
-    if (data) {
-      await refreshTopics();
-      setCurrentPage(returnToPage);
-      setError(null);
-    }
-  }, [refreshTopics, currentOrganization]);
-
-  const handleEditTopic = useCallback((topic: Topic) => {
-    setEditingTopic(topic);
-    setCurrentPage('editTopic');
-  }, []);
-
-  const handleUpdateTopic = useCallback(async (updatedTopic: Topic, returnToPage: PageType) => {
-    const { data, error } = await updateTopic(updatedTopic);
-    
-    if (error) {
-      console.error('Failed to update topic:', error);
-      setError('Failed to update timeline topic. Please try again.');
-      return;
-    }
-    
-    if (data) {
-      await refreshTopics();
-      setEditingTopic(null);
-      setCurrentPage(returnToPage);
-      setError(null);
-    }
-  }, [refreshTopics]);
-
-  const handleDeleteTopic = useCallback(async (topicId: string) => {
-    const { error } = await deleteTopic(topicId);
-    
-    if (error) {
-      console.error('Failed to delete topic:', error);
-      setError('Failed to delete timeline topic. Please try again.');
-      return;
-    }
-    
-    await refreshTopics();
-    setError(null);
-  }, [refreshTopics]);
 
   const handleTopicSelection = useCallback((topicId: TopicId) => {
     setSelectedTopicIdForDisplay(topicId);
@@ -381,51 +266,18 @@ function AppContent() {
     }
   }, [timelineStack, timelineTopics]);
 
-  const handleShowAdminPage = useCallback(() => {
-    if (user && userProfile?.role === 'super_admin') {
-      setCurrentPage('adminPage');
-    } else if (user && organizations.length > 0) {
-      setCurrentPage('organizationDashboard');
-    } else {
-      setCurrentPage('authPage');
-    }
-  }, [user, userProfile, organizations]);
-
-  const handleShowAuthPage = useCallback(() => {
-    setCurrentPage('authPage');
-  }, []);
-
-  const handleBackFromAdminPage = useCallback(() => {
-    setCurrentPage('topicSelection');
-  }, []);
-
-  const handleBackFromAuthPage = useCallback(() => {
-    setCurrentPage('topicSelection');
-  }, []);
-
-  const handleShowAddTopic = useCallback(() => {
-    setCurrentPage('addTopic');
-  }, []);
-
-  const handleBackFromForm = useCallback((returnToPage: PageType) => {
-    setCurrentPage(returnToPage);
-    setEditingTopic(null);
-  }, []);
-
   const hasNext = currentEventIndex < sortedEvents.length - 1;
   const hasPrevious = currentEventIndex > 0;
 
-  // Show loading state - now combines both auth and topics loading
-  if (isLoading) {
+  // Show loading state
+  if (topicsLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <AnimatedBackground />
         <div className="relative z-10 text-center">
           <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-6" />
           <h2 className="text-2xl font-bold mb-2">Loading Timeline Explorer</h2>
-          <p className="text-gray-400">
-            {authLoading ? 'Authenticating...' : 'Loading historical data...'}
-          </p>
+          <p className="text-gray-400">Loading historical data...</p>
         </div>
       </div>
     );
@@ -457,81 +309,12 @@ function AppContent() {
     );
   }
 
-  // Show auth page
-  if (currentPage === 'authPage') {
-    return <AuthPage onBackToTopicSelection={handleBackFromAuthPage} />;
-  }
-
-  // Show add topic page
-  if (currentPage === 'addTopic') {
-    const returnToPage = user && userProfile?.role === 'super_admin' ? 'adminPage' : 'organizationDashboard';
-    return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <TopicFormPage
-          onSubmit={handleAddTopic}
-          onCancel={handleBackFromForm}
-          generateId={generateId}
-          returnToPage={returnToPage}
-          organizationId={currentOrganization?.id}
-        />
-      </ProtectedRoute>
-    );
-  }
-
-  // Show edit topic page
-  if (currentPage === 'editTopic') {
-    const returnToPage = user && userProfile?.role === 'super_admin' ? 'adminPage' : 'organizationDashboard';
-    return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <TopicFormPage
-          initialTopic={editingTopic}
-          onSubmit={handleUpdateTopic}
-          onCancel={handleBackFromForm}
-          generateId={generateId}
-          returnToPage={returnToPage}
-          organizationId={editingTopic?.organizationId}
-        />
-      </ProtectedRoute>
-    );
-  }
-
-  // Show admin page (super admin only)
-  if (currentPage === 'adminPage') {
-    return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <AdminPage
-          topics={timelineTopics}
-          onTopicSelectForView={handleTopicSelection}
-          onAddTopic={handleShowAddTopic}
-          onEditTopic={handleEditTopic}
-          onBackToTopicSelection={handleBackFromAdminPage}
-        />
-      </ProtectedRoute>
-    );
-  }
-
-  // Show organization dashboard
-  if (currentPage === 'organizationDashboard') {
-    return (
-      <ProtectedRoute onBackToTopicSelection={handleBackFromAdminPage}>
-        <OrganizationDashboardPage
-          topics={timelineTopics}
-          onTopicSelectForView={handleTopicSelection}
-          onAddTopic={handleShowAddTopic}
-          onEditTopic={handleEditTopic}
-          onBackToTopicSelection={handleBackFromAdminPage}
-        />
-      </ProtectedRoute>
-    );
-  }
-
   // Show topic selection page
   if (currentPage === 'topicSelection') {
     return (
       <TopicSelectionPage
         topics={timelineTopics}
         onTopicSelect={handleTopicSelection}
-        onShowAuthPage={handleShowAuthPage}
       />
     );
   }
@@ -573,27 +356,6 @@ function AppContent() {
             </button>
             
             <div className="flex items-center gap-4">
-              {/* Auth/Admin button */}
-              <button
-                onClick={handleShowAdminPage}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                aria-label={user && userProfile?.role === 'super_admin' ? 'Access admin panel' : user && organizations.length > 0 ? 'Access organization dashboard' : 'Sign in to admin panel'}
-              >
-                {user && (userProfile?.role === 'super_admin' || organizations.length > 0) ? (
-                  <>
-                    <Settings className="w-4 h-4" aria-hidden="true" />
-                    <span className="text-sm font-medium hidden sm:inline">
-                      {userProfile?.role === 'super_admin' ? 'Admin' : 'Dashboard'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" aria-hidden="true" />
-                    <span className="text-sm font-medium hidden sm:inline">Sign In</span>
-                  </>
-                )}
-              </button>
-              
               {/* Topic Selector - Hidden on small screens */}
               <div className="hidden md:block w-full sm:w-auto mt-2 sm:mt-0">
                 <TopicSelector
@@ -662,14 +424,6 @@ function AppContent() {
         </Modal>
       )}
     </div>
-  );
-}
-
-function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
   );
 }
 
